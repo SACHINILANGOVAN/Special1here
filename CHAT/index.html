@@ -21,6 +21,12 @@
       t = (window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
     }
     document.documentElement.setAttribute('data-theme', t);
+    // iPhone / iPad (incl. iPadOS that reports itself as a Mac): Safari often skips the frosted-glass
+    // blur, which made boxes and text invisible — use solid, high-contrast surfaces there instead.
+    var ua = navigator.userAgent || '';
+    if (/iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) {
+      document.documentElement.classList.add('ios');
+    }
   })();
 </script>
 <style>
@@ -100,6 +106,27 @@ html[data-theme="light"]{
   --ok: #22b573; --warn: #e39622; --bad: #e0435a;
   --scrim: rgba(80,40,60,.25);
 }
+
+/* iOS / no-blur fallback: solid surfaces so boxes, fields and text stay visible and readable */
+html.ios[data-theme="dark"]{
+  --glass: rgba(48,20,50,.92); --glass-strong: rgba(32,12,34,.97);
+  --glass-border: rgba(255,255,255,.16); --tile-bg: rgba(255,255,255,.09);
+  --input-bg: rgba(255,255,255,.10); --bubble-theirs: rgba(255,255,255,.13);
+}
+html.ios[data-theme="light"]{
+  --glass: rgba(255,255,255,.93); --glass-strong: rgba(255,252,253,.98);
+  --glass-border: rgba(214,99,138,.22); --tile-bg: rgba(255,255,255,.90);
+  --input-bg: rgba(255,255,255,.96); --bubble-theirs: #ffffff;
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))){
+  html[data-theme="dark"]{ --glass: rgba(48,20,50,.92); --glass-strong: rgba(32,12,34,.97); --glass-border: rgba(255,255,255,.16); }
+  html[data-theme="light"]{ --glass: rgba(255,255,255,.93); --glass-strong: rgba(255,252,253,.98); --glass-border: rgba(214,99,138,.22); }
+}
+html.ios .blob{filter:blur(48px)}               /* lighter GPU load so Safari keeps drawing the themed background */
+html.ios .float-heart svg{filter:none}
+html.ios body{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+html.ios .seg button,html.ios .btn{white-space:nowrap;min-width:0}
+html.ios .seg button{font-size:14px;padding:0 6px}
 
 /* =========================================================
    BASE
@@ -764,6 +791,45 @@ select.field option{color:#2c1521;background:#fff}
 .fab:active{transform:scale(.9)}
 .fab svg{width:25px;height:25px}
 
+/* Groups */
+.alt-av{background:var(--alt-grad)!important;color:#fff}
+.alt-av svg{width:24px;height:24px}
+.new-group-row .conv-name{color:var(--accent)}
+.group-head{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.group-dp{width:58px;height:58px;flex:none}
+.group-dp .ini{font-size:24px}
+.group-dp .dp-edit{width:24px;height:24px;right:-4px;bottom:-4px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
+.chips:empty{display:none}
+.chip-sel{display:inline-flex;align-items:center;gap:6px;padding:5px 8px 5px 5px;border-radius:999px;background:var(--accent-soft);border:1px solid var(--glass-border);font-size:13.5px;font-weight:600;max-width:100%}
+.chip-sel .avatar{width:24px;height:24px;box-shadow:none}
+.chip-sel .avatar .ini{font-size:11px}
+.chip-sel span.nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px}
+.chip-sel button{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;color:var(--text-2)}
+.chip-sel button svg{width:13px;height:13px}
+.conv-item .check{width:24px;height:24px;border-radius:50%;border:2px solid var(--text-3);display:grid;place-items:center;flex:none;color:#fff;transition:background .2s,border-color .2s}
+.conv-item.selected .check{background:var(--accent-grad);border-color:transparent}
+.conv-item .check svg{width:14px;height:14px;opacity:0}
+.conv-item.selected .check svg{opacity:1}
+.role-badge{font-size:11.5px;font-weight:700;color:var(--accent);border:1px solid var(--accent-soft);border-radius:999px;padding:2px 8px;flex:none}
+.members-group .set-row{padding:9px 14px}
+.members-group .avatar{width:38px;height:38px;box-shadow:none}
+.members-group .avatar .ini{font-size:15px}
+.msg .sender{font-size:12.5px;font-weight:700;margin:0 10px 3px;letter-spacing:-.01em}
+.msg.grouped .sender{display:none}
+
+/* Attachments in private chats */
+.file-card{display:flex;align-items:center;gap:12px;padding:10px 12px;min-width:220px;max-width:min(300px,66vw);text-align:left;color:inherit;width:100%;border-radius:16px}
+.file-card .fc-ic{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;flex:none;background:rgba(0,0,0,.18)}
+.mine .file-card .fc-ic{background:rgba(255,255,255,.22)}
+.file-card .fc-ic svg{width:21px;height:21px}
+.file-card .fc-body{flex:1;min-width:0;line-height:1.3}
+.file-card .fc-name{display:block;font-weight:600;font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file-card .fc-meta{display:block;font-size:12px;opacity:.75;margin-top:2px}
+.file-card .fc-dl{flex:none;opacity:.85}
+.file-card .fc-dl svg{width:19px;height:19px}
+.media-prog .spin svg{animation:spin 1s linear infinite}
+
 /* Private (Supabase) conversation */
 .dm-view .tick.delivered{color:var(--text-3)}
 .tick.read{color:var(--accent)}
@@ -878,11 +944,7 @@ select.field option{color:#2c1521;background:#fff}
               <select class="field cc-select" id="auth-cc" aria-label="Country code"></select>
               <input class="field" id="auth-phone" type="tel" inputmode="tel" autocomplete="tel-national" placeholder="Mobile number" maxlength="20" enterkeyhint="send">
             </div>
-            <p class="field-hint" id="auth-phone-hint">We’ll text you a 6-digit code to verify it’s you.</p>
-            <div class="dev-banner hidden" id="auth-dev-banner" role="note">
-              <b>Development mode</b> — only Supabase test numbers can sign in; no real SMS is sent.
-              <span id="auth-dev-list"></span>
-            </div>
+            <p class="field-hint" id="auth-phone-hint">We’ll send you a 6-digit code to verify it’s you.</p>
             <p class="error-text" id="auth-phone-error" role="alert"></p>
             <button class="btn btn-primary btn-block" id="auth-phone-btn" type="submit"><i data-icon="send"></i><span>Send code</span></button>
           </form>
@@ -998,7 +1060,38 @@ select.field option{color:#2c1521;background:#fff}
         <label class="search-pill"><i data-icon="search"></i><input id="user-search" type="search" placeholder="Username or mobile number" autocomplete="off" autocapitalize="none" spellcheck="false" aria-label="Search by username or mobile number" enterkeyhint="search"></label>
         <p class="search-hint" id="search-hint">Search by <b>username</b>, or by full <b>mobile number</b> with country code (e.g. +44 7700 900123). Numbers without “+” use your country code.</p>
       </div>
-      <div class="list-scroll"><div id="search-results" role="list" aria-label="Search results"></div></div>
+      <div class="list-scroll">
+        <button class="conv-item new-group-row" id="search-new-group">
+          <span class="avatar alt-av"><i data-icon="users"></i></span>
+          <span class="conv-body"><span class="conv-top"><span class="conv-name">New group</span></span><span class="conv-sub">Chat with several people at once</span></span>
+        </button>
+        <div id="search-results" role="list" aria-label="Search results"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== NEW GROUP / ADD MEMBERS ===================== -->
+  <section class="screen" id="screen-group" aria-label="New group" inert>
+    <div class="list-shell">
+      <header class="list-header">
+        <button class="icon-btn" id="group-back" aria-label="Back"><i data-icon="back"></i></button>
+        <div class="list-title" id="group-screen-title">New group</div>
+        <button class="icon-btn theme-toggle" aria-label="Toggle light or dark theme"><i data-icon="sun" class="i-sun"></i><i data-icon="moon" class="i-moon"></i></button>
+      </header>
+      <div class="search-wrap">
+        <div class="group-head" id="group-head">
+          <button class="dp group-dp" id="group-dp" aria-label="Group photo"><span class="ini" id="group-dp-ini">👥</span><img id="group-dp-img" class="hidden" alt=""><span class="dp-edit"><i data-icon="camera"></i></span></button>
+          <input class="field" id="group-name" type="text" maxlength="60" placeholder="Group name" aria-label="Group name">
+        </div>
+        <div class="chips" id="group-chips" aria-live="polite"></div>
+        <label class="search-pill"><i data-icon="search"></i><input id="group-search" type="search" placeholder="Add people: username or mobile number" autocomplete="off" autocapitalize="none" spellcheck="false" aria-label="Search people to add"></label>
+      </div>
+      <div class="list-scroll">
+        <div class="list-label" id="group-list-label">Your contacts</div>
+        <div id="group-results" role="list"></div>
+      </div>
+      <button class="fab" id="group-create" aria-label="Create group" title="Create group"><i data-icon="check"></i></button>
+      <input type="file" id="group-photo-input-new" accept="image/*" hidden>
     </div>
   </section>
 
@@ -1202,9 +1295,11 @@ select.field option{color:#2c1521;background:#fff}
           <div class="input-pill">
             <button class="emoji-btn" id="dm-emoji-btn" aria-label="Emoji" aria-expanded="false"><i data-icon="smile"></i></button>
             <textarea id="dm-input" rows="1" placeholder="Message…" enterkeyhint="send" aria-label="Message" maxlength="4000"></textarea>
+            <button class="emoji-btn" id="dm-attach" aria-label="Send photo, video or file" title="Photo, video or file"><i data-icon="clip"></i></button>
           </div>
           <button class="send-btn" id="dm-send" disabled aria-label="Send message"><i data-icon="send"></i></button>
         </div>
+        <input type="file" id="dm-file-input" multiple hidden>
       </div>
     </div>
   </section>
@@ -1307,13 +1402,24 @@ select.field option{color:#2c1521;background:#fff}
       <p id="pr-username"></p>
       <p id="pr-status"></p>
     </div>
-    <div class="set-group">
+    <div class="set-group" id="pr-direct-info">
       <div class="set-row"><span class="ic alt"><i data-icon="clock"></i></span><span class="lbl">Member since</span><span class="val" id="pr-created">—</span></div>
       <div class="set-row"><span class="ic alt"><i data-icon="lock"></i></span><span class="lbl">Privacy<small>Only you two can read this conversation</small></span></div>
     </div>
+    <div id="pr-group-info" class="hidden">
+      <div class="set-group" id="pr-admin-tools">
+        <button class="set-row" id="pr-rename"><span class="ic"><i data-icon="edit"></i></span><span class="lbl">Edit group name</span><span class="chev"><i data-icon="chev"></i></span></button>
+        <button class="set-row" id="pr-photo"><span class="ic"><i data-icon="camera"></i></span><span class="lbl">Change group photo</span><span class="chev"><i data-icon="chev"></i></span></button>
+        <button class="set-row" id="pr-add"><span class="ic alt"><i data-icon="users"></i></span><span class="lbl">Add members</span><span class="chev"><i data-icon="chev"></i></span></button>
+      </div>
+      <div class="list-label" id="pr-members-label">Members</div>
+      <div class="set-group members-group" id="pr-members"></div>
+    </div>
     <div class="set-group">
       <button class="set-row danger" id="pr-clear"><span class="ic"><i data-icon="trash"></i></span><span class="lbl">Clear chat<small>Hide all current messages for you only</small></span></button>
+      <button class="set-row danger hidden" id="pr-leave"><span class="ic"><i data-icon="leave"></i></span><span class="lbl">Leave group<small>You’ll stop receiving its messages</small></span></button>
     </div>
+    <input type="file" id="group-photo-input" accept="image/*" hidden>
   </div>
 </div>
 
@@ -1386,6 +1492,7 @@ select.field option{color:#2c1521;background:#fff}
     URL: 'https://qjzcsfxmliddufhkktrn.supabase.co',
     ANON_KEY: 'sb_publishable_5780ELS2VSU_P6llBn3Lfg_N1dxGLBO',
     AVATAR_BUCKET: 'avatars',
+    CHAT_MEDIA_BUCKET: 'chat-media',     // private bucket for photos / videos / files in private chats
     // Username accounts are stored in Supabase Auth as "<username>@<this domain>".
     // No e-mail is ever sent to it (turn OFF "Confirm email" in Auth settings).
     USERNAME_EMAIL_DOMAIN: 'users.forever-connect.app',
@@ -1393,20 +1500,14 @@ select.field option{color:#2c1521;background:#fff}
     DEFAULT_COUNTRY: 'IN',
 
     // ---- Phone sign-in environment ------------------------------------------------
-    // 'development': mobile sign-in is limited to the Supabase TEST numbers listed below.
-    //   Their fixed OTP codes live ONLY in Supabase (Auth → Phone → Test Phone Numbers and
-    //   OTPs) — never in this file — and Supabase never sends a real SMS for them.
-    //   Any other number is refused here, so no real SMS is sent and no SMS provider is needed.
-    // 'production': any mobile number; Supabase sends real SMS through your provider.
-    // Authentication is never bypassed in either mode: every code is verified by Supabase Auth.
-    AUTH_ENV: 'development',
-    // E.164 numbers that are configured as test numbers in Supabase (used only in development).
-    DEV_TEST_PHONES: ['+919597288925']
+    // 'development': numbers registered in Supabase (Auth → Phone → Test Phone Numbers and OTPs)
+    //   sign in with their fixed code and no SMS is sent. The app does NOT list or restrict
+    //   numbers — Supabase decides. Numbers that aren't test numbers would need a real SMS provider.
+    // 'production': real SMS for everyone through your provider.
+    // Authentication is never bypassed: every code is verified by Supabase Auth.
+    AUTH_ENV: 'development'
   };
   const AUTH_DEV = SUPABASE_CONFIG.AUTH_ENV === 'development';
-  const DEV_PHONES = (SUPABASE_CONFIG.DEV_TEST_PHONES || [])
-    .map((p) => '+' + String(p).replace(/\D/g, ''))
-    .filter((p) => /^\+[1-9]\d{6,14}$/.test(p));
   const SUPABASE_SRC = [
     'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js',
     'https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js'
@@ -1493,7 +1594,8 @@ select.field option{color:#2c1521;background:#fff}
     eyeOff: '<path d="M10.6 5.1A10.4 10.4 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-2.6 3.5M6.6 6.6A17.4 17.4 0 0 0 2 12s3.6 7 10 7a9.7 9.7 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/><path d="M3 3l18 18"/>',
     search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>',
     chat: '<path d="M21 11.5a8.4 8.4 0 0 1-12.2 7.5L3 21l2-5.6A8.4 8.4 0 1 1 21 11.5z"/><path d="M8.5 11.5h.01M12 11.5h.01M15.5 11.5h.01" stroke-width="2.6"/>',
-    at: '<circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/>'
+    at: '<circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/>',
+    file: '<path d="M14 2.5H7A2.5 2.5 0 0 0 4.5 5v14A2.5 2.5 0 0 0 7 21.5h10a2.5 2.5 0 0 0 2.5-2.5V8z"/><path d="M14 2.5V8h5.5"/><path d="M8.5 13h7M8.5 17h5"/>'
   };
   const icon = (n) => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (P[n] || '') + '</svg>';
 
@@ -2534,7 +2636,9 @@ select.field option{color:#2c1521;background:#fff}
       icon: 'image', title: 'Allow access to your photos?',
       message: purpose === 'avatar'
         ? 'Forever Connect needs access to your photos to set your profile picture. It’s saved to your account and shown to the people you chat with.'
-        : 'Forever Connect needs access to your photos and videos so you can send them. Files go directly to your special person’s device and are never stored or uploaded to a server.',
+        : purpose === 'dm'
+          ? 'Forever Connect needs access to your photos, videos and files so you can send them. They’re stored privately in your account and only the two of you can open them.'
+          : 'Forever Connect needs access to your photos and videos so you can send them. Files go directly to your special person’s device and are never stored or uploaded to a server.',
       buttons: [{ label: 'Not now' }, { label: 'Allow', kind: 'primary', onClick: () => { S.fileAccessOk = true; fn(); } }]
     });
   }
@@ -2806,7 +2910,11 @@ select.field option{color:#2c1521;background:#fff}
     if (e) { ccIc.innerHTML = icon('edit'); ccTitle.textContent = 'Edit message'; ccText.textContent = snippetOf(e); }
     else if (r) { ccIc.innerHTML = icon('reply'); ccTitle.textContent = 'Replying to ' + (r.mine ? 'yourself' : peerName()); ccText.textContent = snippetOf(r); }
   }
-  function focusInput() { setTimeout(() => { try { input.focus({ preventScroll: true }); } catch (e) { input.focus(); } }, 30); }
+  // Focus synchronously (inside the user's gesture, so phones open the keyboard), then once more as a fallback.
+  function focusInput() {
+    const f = () => { try { input.focus({ preventScroll: true }); } catch (e) { input.focus(); } };
+    f(); setTimeout(() => { if (document.activeElement !== input) f(); }, 60);
+  }
   function setReply(m) {
     if (!m || m.sys || m.receiving || !S.role) return;
     if (S.editing) cancelCompose();
@@ -2902,6 +3010,7 @@ select.field option{color:#2c1521;background:#fff}
       get: msgById,
       menu: openMsgMenu,
       reply: setReply,
+      focus: focusInput,
       quote: jumpTo,
       image: (m) => { if (m.url) openViewer(m.url, 'image', { title: (m.mine ? 'You' : peerName()) + ' · ' + fmtTime(m.ts), msg: m }); }
     });
@@ -2953,12 +3062,23 @@ select.field option{color:#2c1521;background:#fff}
       cancelPress();
       if (p.swiping && p.dx >= 58 && e.type === 'pointerup') {
         suppressClick = true;
+        swipeReplied = true;
         if (navigator.vibrate) { try { navigator.vibrate(10); } catch (x) {} }
-        setReply(p.m);
+        setReply(p.m); // focuses the message box
       }
     };
     L.addEventListener('pointerup', end);
     L.addEventListener('pointercancel', end);
+    // After a swipe-to-reply, stop the browser's follow-up "mouse" click on the bubble — it would
+    // take focus away from the message box and close the keyboard again. Re-focus inside touchend,
+    // which phones (incl. iOS) accept as a user gesture for opening the keyboard.
+    let swipeReplied = false;
+    L.addEventListener('touchend', (e) => {
+      if (!swipeReplied) return;
+      swipeReplied = false;
+      if (e.cancelable) e.preventDefault();
+      if (api.focus) api.focus();
+    }, { passive: false });
     L.addEventListener('contextmenu', (e) => {
       const wrap = e.target.closest('.msg');
       if (!wrap || e.target.closest('video')) return;
@@ -2991,7 +3111,8 @@ select.field option{color:#2c1521;background:#fff}
     S.messages.push(m);
     appendMsgEl(m, true);
     if (S.screen === 'chat' && !document.hidden) {
-      if (m.mine || near) scrollToBottom(); else newPill.classList.remove('hidden');
+      // Don't move the chat under an open message menu — show the "New message" pill instead.
+      if (m.mine || (near && msgMenu.classList.contains('hidden'))) scrollToBottom(); else newPill.classList.remove('hidden');
     } else if (!m.mine) {
       if (S.screen !== 'chat') S.unread++;
       if (S.screen === 'chat' && (m.mine || near)) scrollToBottom();
@@ -4116,7 +4237,8 @@ select.field option{color:#2c1521;background:#fff}
     bindMsgGestures();
     msgMenu.addEventListener('contextmenu', (e) => e.preventDefault());
     document.addEventListener('pointerdown', (e) => { if (!msgMenu.classList.contains('hidden') && !msgMenu.contains(e.target) && !e.target.closest('.msg-tool')) closeMsgMenu(); }, true);
-    list.addEventListener('scroll', closeMsgMenu, { passive: true });
+    // Close the message menu only when YOU scroll (an incoming message auto-scrolling must not close it).
+    ['touchmove', 'wheel'].forEach((ev) => list.addEventListener(ev, closeMsgMenu, { passive: true }));
     window.addEventListener('resize', closeMsgMenu);
 
     // Viewer
@@ -4444,15 +4566,8 @@ select.field option{color:#2c1521;background:#fff}
     const c = countryByIso($('#auth-cc').value);
     const phone = toE164(c.dial, $('#auth-phone').value);
     if (!phone) { err.textContent = 'Please enter a valid mobile number.'; return; }
-    // Development guard: only Supabase test numbers, so a real SMS is never attempted.
-    if (AUTH_DEV && DEV_PHONES.indexOf(phone) === -1) {
-      err.textContent = 'Development mode: ' + phone + ' isn’t a test number. Use ' +
-        (DEV_PHONES.length ? DEV_PHONES.join(', ') : 'a number listed in DEV_TEST_PHONES') +
-        ', or set AUTH_ENV to \'production\' once an SMS provider is configured.';
-      return;
-    }
     const btn = $('#auth-phone-btn');
-    setBusy(btn, true, AUTH_DEV ? 'Requesting…' : 'Sending…');
+    setBusy(btn, true, 'Sending…');
     const { error } = await sb.auth.signInWithOtp({ phone: phone, options: { shouldCreateUser: Auth.mode === 'signup' } });
     setBusy(btn, false);
     if (error) {
@@ -4462,9 +4577,7 @@ select.field option{color:#2c1521;background:#fff}
       return;
     }
     Auth.otpPhone = phone;
-    $('#auth-otp-lead').textContent = AUTH_DEV
-      ? 'Enter the fixed test code you set in Supabase for'
-      : 'Enter the 6-digit code sent to';
+    $('#auth-otp-lead').textContent = 'Enter the 6-digit code for';
     $('#auth-otp-to').textContent = phone;
     $('#auth-otp-input').value = '';
     renderAuth(); renderAuthOtp(); startResendCooldown();
@@ -4475,43 +4588,20 @@ select.field option{color:#2c1521;background:#fff}
     const { error } = await sb.auth.signInWithOtp({ phone: Auth.otpPhone, options: { shouldCreateUser: Auth.mode === 'signup' } });
     if (error) { $('#auth-otp-error').textContent = phoneErrMsg(error); return; }
     startResendCooldown();
-    toast(AUTH_DEV ? 'Test number: use the fixed code set in Supabase' : 'A new code is on its way 📩', { icon: 'send' });
+    toast('A new code is on its way 📩', { icon: 'send' });
   }
-  // Phone-specific errors, with development-mode setup guidance.
+  // Phone-specific errors with setup guidance.
   function phoneErrMsg(error) {
     const m = errText(error);
-    if (AUTH_DEV && /phone provider|sms provider|unsupported phone|sms.*(not|disabled)|phone.*(disabled|not enabled)|signups? not allowed for (otp|phone)/i.test(m)) {
-      return 'Development setup needed: in Supabase → Authentication → Sign In / Providers → Phone, enable the Phone provider, add this number under “Test Phone Numbers and OTPs” (e.g. 919597288925=123456) and Save. See SUPABASE_SETUP.md → “Development mode”.';
+    if (/phone provider|unsupported phone|phone.*(disabled|not enabled)|signups? not allowed for (otp|phone)/i.test(m)) {
+      return 'Mobile sign-in isn’t enabled yet (Supabase → Authentication → Sign In / Providers → Phone).';
     }
-    if (AUTH_DEV && /error sending|sms|twilio|provider/i.test(m)) {
-      return 'Supabase tried to send a real SMS — this number isn’t registered as a test number in Supabase. Add it under “Test Phone Numbers and OTPs” exactly as in DEV_TEST_PHONES.';
+    if (/error sending|sending (sms|confirmation)|twilio|sms.*(fail|error)|invalid.*(sid|credential|token)/i.test(m)) {
+      return AUTH_DEV
+        ? 'We couldn’t send a code to this number. If it’s a test number, check it’s saved in Supabase → Phone → “Test Phone Numbers and OTPs” with the country code (e.g. 91…) and that “Test OTPs Valid Until” is a future date.'
+        : 'We couldn’t send the SMS right now. Please try again in a moment.';
     }
     return authErrMsg(error);
-  }
-  function renderDevBanner() {
-    const banner = $('#auth-dev-banner');
-    banner.classList.toggle('hidden', !AUTH_DEV);
-    $('#auth-phone-hint').textContent = AUTH_DEV
-      ? 'Development mode: sign in with a Supabase test number and its fixed code.'
-      : 'We’ll text you a 6-digit code to verify it’s you.';
-    if (!AUTH_DEV) return;
-    const list = $('#auth-dev-list');
-    list.textContent = '';
-    DEV_PHONES.forEach((p) => {
-      const b = el('button', null, p); b.type = 'button';
-      b.title = 'Use this test number';
-      b.addEventListener('click', () => {
-        const digits = p.slice(1);
-        const c = COUNTRIES.filter((x) => digits.indexOf(x.dial) === 0).sort((a, z) => z.dial.length - a.dial.length)[0];
-        if (c) { $('#auth-cc').value = c.iso; $('#auth-phone').value = digits.slice(c.dial.length); }
-        else $('#auth-phone').value = digits;
-        $('#auth-phone-error').textContent = '';
-        $('#auth-phone').focus();
-      });
-      list.appendChild(b);
-    });
-    if (!DEV_PHONES.length) list.appendChild(el('em', null, 'Add your test numbers to DEV_TEST_PHONES in index.html.'));
-    if (window.console) console.info('[ForeverConnect] AUTH_ENV=development — phone sign-in limited to Supabase test numbers: ' + DEV_PHONES.join(', '));
   }
   async function verifyOtp(e) {
     if (e) e.preventDefault();
@@ -4764,17 +4854,13 @@ select.field option{color:#2c1521;background:#fff}
         const e164 = normalizePhone(v);
         if (!e164) { toast('That mobile number doesn’t look right.', { icon: 'alert' }); return; }
         if (e164 === cur) return;
-        if (AUTH_DEV && DEV_PHONES.indexOf(e164) === -1) {
-          toast('Development mode: only Supabase test numbers (' + (DEV_PHONES.join(', ') || 'none listed') + ') can be verified.', { icon: 'alert', duration: 6000 });
-          return;
-        }
         const { error } = await sb.auth.updateUser({ phone: e164 });
         if (error) { toast(phoneErrMsg(error), { icon: 'alert', duration: 6000 }); return; }
         this.verifyPhone(e164);
       });
     },
     verifyPhone(e164) {
-      promptModal({ icon: 'key', title: 'Verify your number', message: AUTH_DEV ? 'Enter the fixed test code you set in Supabase for ' + e164 + '.' : 'Enter the 6-digit code sent to ' + e164 + '.', value: '', placeholder: '123456', confirm: 'Verify', maxLength: 6, inputMode: 'numeric', autocomplete: 'one-time-code' }, async (code) => {
+      promptModal({ icon: 'key', title: 'Verify your number', message: 'Enter the 6-digit code for ' + e164 + '.', value: '', placeholder: '123456', confirm: 'Verify', maxLength: 6, inputMode: 'numeric', autocomplete: 'one-time-code' }, async (code) => {
         const token = String(code || '').replace(/\D/g, '');
         if (token.length !== 6) { toast('Enter the 6-digit code.', { icon: 'alert' }); this.verifyPhone(e164); return; }
         const { data, error } = await sb.auth.verifyOtp({ phone: e164, token: token, type: 'phone_change' });
@@ -5012,7 +5098,7 @@ select.field option{color:#2c1521;background:#fff}
     let loaded = false, inbox = null, inboxEver = false;
     let openId = null, msgs = [], byId = new Map(), hasMore = false, loading = false, loadingOlder = false, tail = null;
     let replyTo = null, editing = null;
-    let typingCh = null, peerTyping = false, typingHideT = null, typingSent = false, typingStopT = null, lastTypingAt = 0;
+    let typingWho = '', typingCh = null, peerTyping = false, typingHideT = null, typingSent = false, typingStopT = null, lastTypingAt = 0;
     let readT = null, deliverT = null, deliverIds = new Set(), listT = null, listRaf = 0, resyncT = null, lastResync = 0, emojiTab = 0, filter = '';
 
     const listEl = $('#conv-list'), emptyEl = $('#conv-empty'), loadingEl = $('#conv-loading');
@@ -5024,10 +5110,60 @@ select.field option{color:#2c1521;background:#fff}
 
     const conv = () => convs.get(openId);
     const peer = () => { const c = conv(); return c ? c.peer : null; };
-    const peerName = () => nameOf(peer());
+    // Groups: title/photo instead of a peer; members are loaded on demand.
+    const convName = (c) => (c ? (c.isGroup ? c.title : nameOf(c.peer)) : '');
+    const convAvatar = (c) => (c ? avatarUrl(c.isGroup ? c.groupAvatar : c.peer && c.peer.avatar_path) : null);
+    const peerName = () => convName(conv());
+    const memberName = (c, uid) => {
+      if (uid === myId()) return 'You';
+      const mm = c && c.members && c.members.get(uid);
+      return mm ? nameOf(mm) : (c && !c.isGroup && c.peer && c.peer.id === uid ? nameOf(c.peer) : 'Someone');
+    };
+    const SENDER_COLORS = ['#ff6a9f', '#b67cff', '#3ec7a7', '#ffae4d', '#5aa9ff', '#ff7a6b', '#d36bff', '#4fd08a'];
+    const senderColor = (uid) => { let h = 0; for (let i = 0; i < uid.length; i++) h = (h * 31 + uid.charCodeAt(i)) >>> 0; return SENDER_COLORS[h % SENDER_COLORS.length]; };
+    async function loadMembers(c) {
+      if (!c || !c.isGroup) return;
+      const { data, error } = await sb.from('conversation_participants')
+        .select('user_id, role, joined_at, profiles(id, username, display_name, avatar_path, created_at)')
+        .eq('conversation_id', c.id);
+      if (error) { if (window.console) console.warn('[ForeverConnect] members', error); return; }
+      c.members = new Map();
+      (data || []).forEach((r) => { const p = r.profiles || { id: r.user_id }; c.members.set(r.user_id, Object.assign({}, p, { id: r.user_id, role: r.role, joined_at: r.joined_at })); });
+      c.memberCount = c.members.size;
+      const me = c.members.get(myId()); if (me) c.myRole = me.role;
+    }
     const viewing = () => S.screen === 'dm' && !!openId && document.visibilityState === 'visible';
     const snip = (t, n) => { const s = String(t || '').replace(/\s+/g, ' ').trim(); n = n || 120; return s.length > n ? s.slice(0, n) + '…' : s; };
     const nearBottom = (px) => thread.scrollHeight - thread.scrollTop - thread.clientHeight < (px || 140);
+    // ---- Attachments ----
+    const BUCKET = SUPABASE_CONFIG.CHAT_MEDIA_BUCKET || 'chat-media', MAX_FILE = 50 * 1048576;
+    let ATT = true; // becomes false if the database hasn't been upgraded for attachments (schema.sql not re-run)
+    const SEL = () => 'id, conversation_id, sender_id, body, reply_to_id, created_at, edited_at' +
+      (ATT ? ', kind, attachment_path, attachment_name, attachment_mime, attachment_size' : '') +
+      ', message_receipts(user_id, delivered_at, read_at)';
+    const isMissingColumn = (e) => /column|attachment_|schema cache|42703/i.test(errText(e) + ' ' + ((e && e.code) || ''));
+    function labelOf(kind, body, name) {
+      if (kind === 'image') return '📷 Photo';
+      if (kind === 'video') return '🎥 Video';
+      if (kind === 'file') return '📄 ' + (name || 'File');
+      return body || '';
+    }
+    const labelMsg = (m) => labelOf(m.kind, m.text, m.att && m.att.name);
+    const signed = new Map(); // storage path -> { url, exp }
+    async function signPaths(paths) {
+      const need = Array.from(new Set(paths)).filter((p) => { const c = signed.get(p); return !c || c.exp < Date.now() + 120000; });
+      if (!need.length) return;
+      const { data, error } = await sb.storage.from(BUCKET).createSignedUrls(need, 3600);
+      if (error) { if (window.console) console.warn('[ForeverConnect] attachments', error); return; }
+      (data || []).forEach((d) => { if (d && d.signedUrl && d.path) signed.set(d.path, { url: d.signedUrl, exp: Date.now() + 3600000 }); });
+    }
+    function attUrl(m) { if (m.localUrl) return m.localUrl; const c = m.att && signed.get(m.att.path); return c ? c.url : null; }
+    async function ensureUrls(list) {
+      const todo = list.filter((m) => m.att && !attUrl(m) && m.kind !== 'file');
+      if (!todo.length) return;
+      await signPaths(todo.map((m) => m.att.path));
+      todo.forEach((m) => { if (attUrl(m)) fill(m); });
+    }
     function scrollBottom(instant) { newPill.classList.add('hidden'); requestAnimationFrame(() => thread.scrollTo({ top: thread.scrollHeight, behavior: instant ? 'auto' : 'smooth' })); }
     function tickEl(st) {
       const v = TICKS[st] || TICKS.sent, t = el('span', 'tick ' + st);
@@ -5098,18 +5234,22 @@ select.field option{color:#2c1521;background:#fff}
       if (isOpen) {
         const m = byId.get(r.id);
         if (m) {
-          if (m.status === 'pending' || m.status === 'failed') { m.status = 'sent'; updateTick(m); dropOutbox(m); }
+          if (m.status === 'pending' || m.status === 'failed') { m.status = 'sent'; refreshMine(m); dropOutbox(m); }
           if (!m.createdAt) m.createdAt = r.created_at;
         } else {
           const nm = rowToMsg(r);
-          if (nm.replyId && byId.get(nm.replyId)) { const t = byId.get(nm.replyId); nm.reply = { id: t.id, mine: t.mine, text: snip(t.text) }; }
+          if (nm.replyId && byId.get(nm.replyId)) { const t = byId.get(nm.replyId); nm.reply = { id: t.id, mine: t.mine, from: t.from, text: snip(labelMsg(t)) }; }
           const near = nearBottom();
           addToThread(nm, true);
+          if (nm.att) ensureUrls([nm]);
           if (!mine) hideTyping();
-          if (near || mine) scrollBottom(); else newPill.classList.remove('hidden');
+          if (mine || (near && msgMenu.classList.contains('hidden'))) scrollBottom(); else newPill.classList.remove('hidden');
         }
       }
-      bumpConv(r.conversation_id, { id: r.id, body: r.body, sender: r.sender_id, ts: localTs(r.created_at), delivered: false, read: false }, !mine && !see);
+      bumpConv(r.conversation_id, { id: r.id, body: labelOf(r.kind, r.body, r.attachment_name), sender: r.sender_id, kind: r.kind || 'text',
+        senderName: c.isGroup ? memberName(c, r.sender_id) : '', ts: localTs(r.created_at), delivered: false, read: false }, !mine && !see && r.kind !== 'system');
+      // Membership changes (system lines) may change who's in the group / my role.
+      if (c.isGroup && r.kind === 'system') { loadMembers(c).then(() => { if (r.conversation_id === openId) { renderHeader(); if (peerRoot.classList.contains('open')) renderPeer(); } }); loadListSoon(); }
       if (!mine) {
         if (see) markReadSoon(); else deliverSoon(r.conversation_id);
         notifyNew(r, c, see);
@@ -5120,15 +5260,27 @@ select.field option{color:#2c1521;background:#fff}
       const m = byId.get(r.id);
       if (m && r.conversation_id === openId && m.text !== r.body) { m.text = r.body; m.edited = !!r.edited_at; fill(m); }
       const c = convs.get(r.conversation_id);
-      if (c && c.last && c.last.id === r.id) { c.last.body = r.body; renderListSoon(); }
+      if (c && c.last && c.last.id === r.id) { c.last.body = labelOf(r.kind, r.body, r.attachment_name); renderListSoon(); }
+    }
+    // Status of my message from the receipts of every other member (1 for direct chats, N-1 for groups).
+    function statusFrom(m, c) {
+      const others = Math.max(1, ((c && c.memberCount) || 2) - 1), rc = m.rcpt || {};
+      let d = 0, rd = 0;
+      Object.keys(rc).forEach((u) => { if (u !== myId()) { d++; if (rc[u]) rd++; } });
+      return rd >= others ? 'read' : d >= others ? 'delivered' : 'sent';
     }
     function onReceipt(r) {
       if (!r || r.user_id === myId()) return;
-      const st = r.read_at ? 'read' : 'delivered';
       const m = byId.get(r.message_id);
-      if (m && m.mine && RANK[st] > (RANK[m.status] || 0)) { m.status = st; updateTick(m); }
+      if (m && m.mine) {
+        m.rcpt = m.rcpt || {}; m.rcpt[r.user_id] = !!r.read_at;
+        const st = statusFrom(m, conv());
+        if (RANK[st] > (RANK[m.status] || 0)) { m.status = st; updateTick(m); }
+      }
       convs.forEach((c) => {
-        if (c.last && c.last.id === r.message_id) { c.last.delivered = true; if (r.read_at) c.last.read = true; renderListSoon(); }
+        if (!c.last || c.last.id !== r.message_id) return;
+        if (c.isGroup) loadListSoon(); // needs every member's receipt — let the server decide
+        else { c.last.delivered = true; if (r.read_at) c.last.read = true; renderListSoon(); }
       });
     }
     function onPresence(r) {
@@ -5138,14 +5290,16 @@ select.field option{color:#2c1521;background:#fff}
       const p = peer(); if (p && p.id === r.user_id) renderHeader();
     }
     function notifyNew(r, c, seen) {
-      const name = c ? nameOf(c.peer) : 'New message';
+      const name = c ? convName(c) : 'New message';
+      const text = labelOf(r.kind, r.body, r.attachment_name);
+      const body = c && c.isGroup && r.kind !== 'system' ? memberName(c, r.sender_id) + ': ' + text : text;
       const away = !myFocused();
       if (away) {
         S.hiddenUnread++;
         if (!titleFlash) document.title = '(' + S.hiddenUnread + ') Forever Connect ❤️';
-        showNotify(name, snip(r.body, 180), { tag: 'fc-dm-' + r.conversation_id, kind: 'dm', conv: r.conversation_id, icon: c ? avatarUrl(c.peer.avatar_path) : null });
+        showNotify(name, snip(body, 180), { tag: 'fc-dm-' + r.conversation_id, kind: 'dm', conv: r.conversation_id, icon: c ? convAvatar(c) : null });
       } else if (!seen) {
-        toast('💬 ' + name + ': ' + snip(r.body, 60), { action: { label: 'Open', fn: () => openConv(r.conversation_id) } });
+        toast('💬 ' + name + ': ' + snip(body, 60), { action: { label: 'Open', fn: () => openConv(r.conversation_id) } });
         Tone.ding();
       }
     }
@@ -5181,17 +5335,28 @@ select.field option{color:#2c1521;background:#fff}
       (data || []).forEach((r) => {
         keep.add(r.conversation_id);
         const c = convs.get(r.conversation_id) || { id: r.conversation_id, readMark: null };
-        c.peer = { id: r.peer_id, username: r.peer_username, display_name: r.peer_display_name, avatar_path: r.peer_avatar_path, created_at: r.peer_created_at };
-        c.last = r.last_message_id ? { id: r.last_message_id, body: r.last_message_body, sender: r.last_message_sender_id, ts: localTs(r.last_message_at), delivered: !!r.last_message_delivered, read: !!r.last_message_read } : null;
+        c.isGroup = !!r.is_group;
+        if (c.isGroup) {
+          c.peer = null; c.title = r.group_title || 'Group'; c.groupAvatar = r.group_avatar_path || null;
+          c.memberCount = Number(r.member_count) || c.memberCount || 2; c.myRole = r.my_role || 'member';
+        } else {
+          c.peer = { id: r.peer_id, username: r.peer_username, display_name: r.peer_display_name, avatar_path: r.peer_avatar_path, created_at: r.peer_created_at };
+          c.memberCount = 2;
+        }
+        c.last = r.last_message_id ? { id: r.last_message_id, body: labelOf(r.last_message_kind, r.last_message_body, r.last_message_file_name), sender: r.last_message_sender_id, senderName: r.last_message_sender_name || '', kind: r.last_message_kind || 'text', ts: localTs(r.last_message_at), delivered: !!r.last_message_delivered, read: !!r.last_message_read } : null;
         c.unread = (c.id === openId && viewing()) ? 0 : Number(r.unread_count) || 0;
         c.clearedAt = r.cleared_at;
         c.createdTs = localTs(r.created_at);
         convs.set(c.id, c);
-        const prev = presence.get(r.peer_id);
-        const seen = r.peer_last_seen_at ? localTs(r.peer_last_seen_at) : 0;
-        if (!prev || seen >= prev.seen || !r.peer_is_online) presence.set(r.peer_id, { online: !!r.peer_is_online, seen: seen });
+        if (!c.isGroup) {
+          const prev = presence.get(r.peer_id);
+          const seen = r.peer_last_seen_at ? localTs(r.peer_last_seen_at) : 0;
+          if (!prev || seen >= prev.seen || !r.peer_is_online) presence.set(r.peer_id, { online: !!r.peer_is_online, seen: seen });
+        }
       });
       Array.from(convs.keys()).forEach((k) => { if (!keep.has(k)) convs.delete(k); });
+      // Removed from (or left) the open group: close it.
+      if (openId && !convs.has(openId) && S.screen === 'dm') { toast('You’re no longer in that conversation.', { icon: 'leave' }); showScreen('chats'); }
       // Listen for calls in recent chats (including new chats that have no messages yet).
       Array.from(convs.values()).sort((a, b) => (b.last ? b.last.ts : b.createdTs || 0) - (a.last ? a.last.ts : a.createdTs || 0))
         .slice(0, 80).forEach((c) => ensureChannel(c.id));
@@ -5209,7 +5374,7 @@ select.field option{color:#2c1521;background:#fff}
     function renderList() {
       if (!Auth.ready) return;
       const q = filter.trim().toLowerCase().replace(/^@/, '');
-      const items = sorted().filter((c) => !q || nameOf(c.peer).toLowerCase().indexOf(q) !== -1 || (c.peer.username || '').indexOf(q) !== -1);
+      const items = sorted().filter((c) => !q || convName(c).toLowerCase().indexOf(q) !== -1 || (!c.isGroup && (c.peer.username || '').indexOf(q) !== -1));
       listEl.textContent = '';
       items.forEach((c) => listEl.appendChild(convItem(c)));
       const empty = loaded && !items.length;
@@ -5222,9 +5387,11 @@ select.field option{color:#2c1521;background:#fff}
     function convItem(c) {
       const b = el('button', 'conv-item' + (c.unread ? ' unread' : '') + (c.id === openId && S.screen === 'dm' ? ' current' : ''));
       b.type = 'button'; b.setAttribute('role', 'listitem'); b.dataset.id = c.id;
-      const name = nameOf(c.peer);
-      const av = el('span', 'avatar'); paintAvatar(av, name, avatarUrl(c.peer.avatar_path));
-      if (isOnline(c.peer.id)) av.appendChild(el('span', 'presence ok'));
+      const name = convName(c);
+      const av = el('span', 'avatar' + (c.isGroup && !c.groupAvatar ? ' alt-av' : ''));
+      if (c.isGroup && !c.groupAvatar) av.innerHTML = icon('users');
+      else paintAvatar(av, name, convAvatar(c));
+      if (!c.isGroup && isOnline(c.peer.id)) av.appendChild(el('span', 'presence ok'));
       b.appendChild(av);
       const body = el('span', 'conv-body');
       const top = el('span', 'conv-top');
@@ -5232,11 +5399,12 @@ select.field option{color:#2c1521;background:#fff}
       top.appendChild(el('time', 'conv-time', c.last ? fmtListTime(c.last.ts) : ''));
       const bot = el('span', 'conv-bottom');
       const sn = el('span', 'conv-snippet');
-      if (c.id === openId && peerTyping) { const t = el('span', null, 'typing…'); t.style.color = 'var(--accent)'; sn.appendChild(t); }
+      if (c.id === openId && peerTyping) { const t = el('span', null, typingWho ? typingWho + ' is typing…' : 'typing…'); t.style.color = 'var(--accent)'; sn.appendChild(t); }
       else if (c.last) {
-        if (c.last.sender === myId()) sn.appendChild(tickEl(c.last.read ? 'read' : c.last.delivered ? 'delivered' : 'sent'));
-        sn.appendChild(document.createTextNode(snip(c.last.body, 90)));
-      } else sn.textContent = 'Say hello 👋';
+        if (c.last.sender === myId() && c.last.kind !== 'system') sn.appendChild(tickEl(c.last.read ? 'read' : c.last.delivered ? 'delivered' : 'sent'));
+        const who = c.isGroup && c.last.kind !== 'system' && c.last.sender !== myId() && c.last.senderName ? c.last.senderName.split(' ')[0] + ': ' : '';
+        sn.appendChild(document.createTextNode(who + snip(c.last.body, 90)));
+      } else sn.textContent = c.isGroup ? 'Group created' : 'Say hello 👋';
       bot.appendChild(sn);
       if (c.unread) bot.appendChild(el('span', 'badge', c.unread > 99 ? '99+' : String(c.unread)));
       body.appendChild(top); body.appendChild(bot);
@@ -5263,10 +5431,14 @@ select.field option{color:#2c1521;background:#fff}
         openId = id; resetThread();
         input.value = drafts.get(id) || '';
       }
+      const c0 = convs.get(id);
+      $('#dm-voice').classList.toggle('hidden', !!c0.isGroup); // calls are one-to-one
+      $('#dm-video').classList.toggle('hidden', !!c0.isGroup);
       renderHeader(); renderComposeCtx(); autoGrow(); updateSendBtn();
       showScreen('dm');
       saveOpen();
       renderList();
+      if (c0.isGroup && !c0.members) { await loadMembers(c0); if (openId !== id) return; renderHeader(); }
       if (same && msgs.length) mergeLatest(); else await loadLatest();
       if (openId !== id) return;
       subscribeTyping();
@@ -5287,35 +5459,48 @@ select.field option{color:#2c1521;background:#fff}
     /* ---------- Messages ---------- */
     function rowToMsg(r) {
       const mine = r.sender_id === myId();
-      const m = { id: r.id, conv: r.conversation_id, mine: mine, text: r.body, ts: localTs(r.created_at), createdAt: r.created_at, edited: !!r.edited_at, replyId: r.reply_to_id || null, reply: null };
+      const m = { id: r.id, conv: r.conversation_id, mine: mine, text: r.body, ts: localTs(r.created_at), createdAt: r.created_at, edited: !!r.edited_at, replyId: r.reply_to_id || null, reply: null, kind: r.kind || 'text' };
+      if (r.attachment_path) m.att = { path: r.attachment_path, name: r.attachment_name || 'File', mime: r.attachment_mime || '', size: Number(r.attachment_size) || 0 };
       if (mine) {
-        const rc = (r.message_receipts || []).find((x) => x.user_id !== myId());
-        m.status = rc ? (rc.read_at ? 'read' : 'delivered') : 'sent';
+        m.rcpt = {};
+        (r.message_receipts || []).forEach((x) => { if (x.user_id !== myId()) m.rcpt[x.user_id] = !!x.read_at; });
+        m.status = statusFrom(m, convs.get(r.conversation_id));
       }
+      m.from = r.sender_id;
       return m;
     }
     async function fetchPage(id, beforeIso) {
       const c = convs.get(id);
-      let q = sb.from('messages')
-        .select('id, conversation_id, sender_id, body, reply_to_id, created_at, edited_at, message_receipts(user_id, delivered_at, read_at)')
-        .eq('conversation_id', id).order('created_at', { ascending: false }).limit(PAGE + 1);
-      if (c && c.clearedAt) q = q.gt('created_at', c.clearedAt);
-      if (beforeIso) q = q.lt('created_at', beforeIso);
-      const { data, error } = await q;
+      const run = () => {
+        let q = sb.from('messages').select(SEL())
+          .eq('conversation_id', id).order('created_at', { ascending: false }).limit(PAGE + 1);
+        if (c && c.clearedAt) q = q.gt('created_at', c.clearedAt);
+        if (beforeIso) q = q.lt('created_at', beforeIso);
+        return q;
+      };
+      let { data, error } = await run();
+      if (error && ATT && isMissingColumn(error)) {
+        // Database not upgraded for attachments yet: keep chatting with text, tell the owner once.
+        ATT = false;
+        if (window.console) console.warn('[ForeverConnect] Attachments need the updated schema.sql — re-run it in the Supabase SQL Editor.');
+        ({ data, error } = await run());
+      }
       if (error) throw error;
-      return { rows: data.slice(0, PAGE).reverse(), more: data.length > PAGE };
+      const rows = data.slice(0, PAGE).reverse();
+      signPaths(rows.filter((r) => r.attachment_path && r.kind !== 'file').map((r) => r.attachment_path)).then(() => ensureUrls(msgs));
+      return { rows: rows, more: data.length > PAGE };
     }
     async function resolveReplies(list) {
       const missing = Array.from(new Set(list.filter((m) => m.replyId && !m.reply && !byId.has(m.replyId)).map((m) => m.replyId)));
       const extra = new Map();
       if (missing.length) {
-        const { data } = await sb.from('messages').select('id, sender_id, body').in('id', missing.slice(0, 100));
-        (data || []).forEach((r) => extra.set(r.id, { id: r.id, mine: r.sender_id === myId(), text: r.body }));
+        const { data } = await sb.from('messages').select('id, sender_id, body' + (ATT ? ', kind, attachment_name' : '')).in('id', missing.slice(0, 100));
+        (data || []).forEach((r) => extra.set(r.id, { id: r.id, mine: r.sender_id === myId(), from: r.sender_id, text: r.body, kind: r.kind || 'text', att: r.attachment_name ? { name: r.attachment_name } : null }));
       }
       list.forEach((m) => {
         if (!m.replyId || m.reply) return;
         const t = byId.get(m.replyId) || extra.get(m.replyId);
-        m.reply = t ? { id: t.id, mine: !!t.mine, text: snip(t.text) } : { id: m.replyId, mine: false, text: '' };
+        m.reply = t ? { id: t.id, mine: !!t.mine, from: t.from, text: snip(labelMsg(t)) } : { id: m.replyId, mine: false, text: '' };
       });
     }
     async function loadLatest() {
@@ -5379,7 +5564,7 @@ select.field option{color:#2c1521;background:#fff}
           if (!m.createdAt) m.createdAt = r.created_at;
           if (m.mine) {
             const st = rowToMsg(r).status;
-            if (RANK[st] > (RANK[m.status] || 0)) { if (m.status === 'pending' || m.status === 'failed') dropOutbox(m); m.status = st; updateTick(m); }
+            if (RANK[st] > (RANK[m.status] || 0)) { const was = m.status; if (was === 'pending' || was === 'failed') dropOutbox(m); m.status = st; if (was === 'pending' || was === 'failed') refreshMine(m); else updateTick(m); }
           }
         });
         if (added.length) {
@@ -5411,6 +5596,12 @@ select.field option{color:#2c1521;background:#fff}
     function intro() {
       const d = el('div', 'intro-card glass');
       d.innerHTML = '<svg viewBox="0 0 24 24"><use href="#heart-3d"/></svg>';
+      const c = conv();
+      if (c && c.isGroup) {
+        d.appendChild(el('b', null, c.title));
+        d.appendChild(document.createTextNode('Messages in this group are saved securely. Only its members can read them.'));
+        return d;
+      }
       d.appendChild(el('b', null, 'Your private conversation'));
       d.appendChild(document.createTextNode('Messages with ' + peerName() + ' are saved securely to your account. Only you two can read them.'));
       return d;
@@ -5439,32 +5630,46 @@ select.field option{color:#2c1521;background:#fff}
         thread.appendChild(d);
         tail = { day: day, el: null };
       }
+      if (m.kind === 'system') { // "Ravi added Priya" — centred note, never grouped
+        const d = el('div', 'sys'); d.dataset.id = m.id; d.appendChild(el('span', null, m.text));
+        m.el = d; thread.appendChild(d);
+        tail = { day: day, el: null };
+        return;
+      }
       const wrap = el('div', 'msg ' + (m.mine ? 'mine' : 'theirs') + (animate ? ' anim' : ''));
       wrap.dataset.id = m.id;
-      if (tail.el && tail.mine === m.mine && m.ts - tail.ts < 120000 && thread.lastElementChild === tail.el) {
+      if (tail.el && tail.mine === m.mine && tail.from === m.from && m.ts - tail.ts < 120000 && thread.lastElementChild === tail.el) {
         wrap.classList.add('grouped'); tail.el.classList.add('has-next');
       }
       m.el = wrap;
       fill(m);
       thread.appendChild(wrap);
-      tail = { day: day, mine: m.mine, ts: m.ts, el: wrap };
+      tail = { day: day, mine: m.mine, from: m.from, ts: m.ts, el: wrap };
     }
     function quoteEl(r) {
       const q = el('button', 'quote'); q.type = 'button'; q.dataset.ref = r.id;
-      q.appendChild(el('b', null, r.mine ? 'You' : peerName()));
+      const c = conv();
+      q.appendChild(el('b', null, r.mine ? 'You' : (c && c.isGroup && r.from ? memberName(c, r.from) : peerName())));
       q.appendChild(el('span', null, r.text || 'Message'));
       return q;
     }
     function fill(m) {
       const wrap = m.el; if (!wrap) return;
       wrap.textContent = '';
-      wrap.classList.toggle('emoji-only', !m.reply && isEmojiOnly(m.text));
+      wrap.classList.toggle('emoji-only', !m.reply && !(m.kind && m.kind !== 'text') && isEmojiOnly(m.text || ''));
       const sw = el('span', 'swipe-ic'); sw.innerHTML = icon('reply'); sw.setAttribute('aria-hidden', 'true');
       wrap.appendChild(sw);
+      const gc = conv();
+      if (gc && gc.isGroup && !m.mine && m.from) { // sender name above their bubble in groups
+        const s = el('div', 'sender', memberName(gc, m.from)); s.style.color = senderColor(m.from);
+        wrap.appendChild(s);
+      }
       const brow = el('div', 'brow');
-      const b = el('div', 'bubble');
+      const hasAtt = m.kind && m.kind !== 'text' && m.att;
+      const b = el('div', 'bubble' + (hasAtt ? ' media' : ''));
       if (m.reply) b.appendChild(quoteEl(m.reply));
-      b.appendChild(el('span', 'btext', m.text));
+      if (hasAtt) b.appendChild(attEl(m));
+      if (m.text) b.appendChild(el('span', 'btext', m.text));
       brow.appendChild(b);
       const tools = el('div', 'msg-tools');
       tools.appendChild(toolBtn('reply', 'Reply', 'reply'));
@@ -5477,6 +5682,61 @@ select.field option{color:#2c1521;background:#fff}
       if (m.mine) meta.appendChild(el('span', 'tick'));
       wrap.appendChild(meta);
       if (m.mine) updateTick(m);
+    }
+    // Photo / video preview or file card (+ upload state for my unsent attachments).
+    function attEl(m) {
+      const url = attUrl(m), busy = m.mine && (m.status === 'pending' || m.status === 'failed');
+      if (m.kind === 'file') {
+        const card = el('button', 'file-card'); card.type = 'button'; card.dataset.file = m.id;
+        const ic = el('span', 'fc-ic'); ic.innerHTML = icon(busy ? (m.status === 'failed' ? 'alert' : 'clock') : 'file'); card.appendChild(ic);
+        const body = el('span', 'fc-body');
+        body.appendChild(el('span', 'fc-name', m.att.name));
+        const ext = (/\.([a-z0-9]{1,8})$/i.exec(m.att.name) || [, ''])[1].toUpperCase();
+        body.appendChild(el('span', 'fc-meta', busy ? (m.status === 'failed' ? 'Not sent' : 'Uploading… ' + fmtSize(m.att.size)) : fmtSize(m.att.size) + (ext ? ' · ' + ext : '')));
+        card.appendChild(body);
+        if (!busy) { const dl = el('span', 'fc-dl'); dl.innerHTML = icon('download'); card.appendChild(dl); }
+        card.setAttribute('aria-label', (busy ? '' : 'Download ') + m.att.name);
+        return card;
+      }
+      const w = el('div', 'media-wrap');
+      if (url) {
+        if (m.kind === 'image') {
+          const img = el('img'); img.alt = 'Photo'; img.dataset.view = m.id; img.decoding = 'async';
+          img.addEventListener('load', () => { if (S.screen === 'dm' && nearBottom(img.offsetHeight + 160)) scrollBottom(true); });
+          img.src = url; w.appendChild(img);
+        } else {
+          const v = el('video'); v.controls = true; v.playsInline = true; v.setAttribute('playsinline', ''); v.preload = 'metadata';
+          v.src = url; w.appendChild(v);
+        }
+      } else { w.classList.add('loading'); ensureUrls([m]); }
+      if (busy || !url) {
+        const p = el('div', 'media-prog');
+        const ic = el('span', busy && m.status !== 'failed' || !url ? 'spin' : null);
+        ic.innerHTML = icon(m.status === 'failed' ? 'alert' : (busy ? 'refresh' : (m.kind === 'video' ? 'video' : 'image')));
+        p.appendChild(ic);
+        p.appendChild(el('span', null, m.status === 'failed' ? 'Not sent' : busy ? 'Uploading… ' + fmtSize(m.att.size) : 'Loading…'));
+        w.appendChild(p);
+      }
+      return w;
+    }
+    async function downloadAtt(m) {
+      if (!m || !m.att) return;
+      if (m.mine && (m.status === 'pending' || m.status === 'failed')) return;
+      let href = m.localUrl;
+      if (!href) {
+        const { data, error } = await sb.storage.from(BUCKET).createSignedUrl(m.att.path, 600, { download: m.att.name });
+        if (error || !data) { toast('Couldn’t open the file: ' + authErrMsg(error), { icon: 'alert' }); return; }
+        href = data.signedUrl;
+      }
+      const a = document.createElement('a'); a.href = href; a.download = m.att.name; a.rel = 'noopener';
+      if (!m.localUrl) a.target = '_blank';
+      document.body.appendChild(a); a.click(); a.remove();
+    }
+    async function viewImage(m) {
+      const url = attUrl(m); if (!url) return;
+      let dl = m.localUrl;
+      if (!dl) { const r = await sb.storage.from(BUCKET).createSignedUrl(m.att.path, 600, { download: m.att.name }); dl = r.data && r.data.signedUrl; }
+      openViewer(url, 'image', { title: (m.mine ? 'You' : peerName()) + ' · ' + fmtTime(m.ts), msg: dl ? { url: dl, mime: m.att.mime, ts: m.ts } : null });
     }
     function updateTick(m) {
       const t = m.el && m.el.querySelector('.tick');
@@ -5496,9 +5756,11 @@ select.field option{color:#2c1521;background:#fff}
       if (!m) return;
       const failed = m.status === 'failed', pending = m.status === 'pending';
       const items = [];
+      const att = m.kind && m.kind !== 'text' && m.att;
       if (!failed && !pending) items.push(['reply', 'Reply', () => setReply(m)]);
-      items.push(['copy', 'Copy', async () => { const ok = await copyText(m.text); toast(ok ? 'Copied' : 'Couldn’t copy', { icon: ok ? 'check' : 'alert' }); }]);
-      if (m.mine && !failed && !pending) items.push(['edit', 'Edit', () => startEdit(m)]);
+      if (m.text) items.push(['copy', 'Copy', async () => { const ok = await copyText(m.text); toast(ok ? 'Copied' : 'Couldn’t copy', { icon: ok ? 'check' : 'alert' }); }]);
+      if (att && !failed && !pending) items.push(['download', m.kind === 'file' ? 'Download' : 'Save to device', () => downloadAtt(m)]);
+      if (m.mine && !att && !failed && !pending) items.push(['edit', 'Edit', () => startEdit(m)]);
       if (failed) { items.push(['refresh', 'Retry sending', () => retry(m)]); items.push(['trash', 'Delete unsent message', () => discard(m)]); }
       showMenu(items, anchor, m.mine, m.id);
     }
@@ -5506,17 +5768,25 @@ select.field option{color:#2c1521;background:#fff}
     /* ---------- Composer ---------- */
     function autoGrow() { input.style.height = 'auto'; input.style.height = Math.min(Math.max(input.scrollHeight, 44), 140) + 'px'; }
     function updateSendBtn() { sendBtn.disabled = !input.value.trim() || !openId; }
-    function focusInput() { setTimeout(() => { try { input.focus({ preventScroll: true }); } catch (e) { input.focus(); } }, 30); }
+    function focusInput() {
+      const f = () => { try { input.focus({ preventScroll: true }); } catch (e) { input.focus(); } };
+      f(); setTimeout(() => { if (document.activeElement !== input) f(); }, 60);
+    }
     function renderComposeCtx() {
       ctx.classList.toggle('hidden', !editing && !replyTo);
       sendBtn.innerHTML = icon(editing ? 'check' : 'send');
       sendBtn.setAttribute('aria-label', editing ? 'Save edit' : 'Send message');
       if (editing) { $('#dm-cc-ic').innerHTML = icon('edit'); $('#dm-cc-title').textContent = 'Edit message'; $('#dm-cc-text').textContent = snip(editing.text); }
-      else if (replyTo) { $('#dm-cc-ic').innerHTML = icon('reply'); $('#dm-cc-title').textContent = 'Replying to ' + (replyTo.mine ? 'yourself' : peerName()); $('#dm-cc-text').textContent = snip(replyTo.text); }
+      else if (replyTo) {
+        const c = conv();
+        $('#dm-cc-ic').innerHTML = icon('reply');
+        $('#dm-cc-title').textContent = 'Replying to ' + (replyTo.mine ? 'yourself' : (c && c.isGroup ? memberName(c, replyTo.from) : peerName()));
+        $('#dm-cc-text').textContent = snip(labelMsg(replyTo));
+      }
     }
     function setReply(m) { if (!m || m.status === 'pending' || m.status === 'failed') return; editing = null; replyTo = m; renderComposeCtx(); focusInput(); }
     function startEdit(m) {
-      if (!m || !m.mine) return;
+      if (!m || !m.mine || (m.kind && m.kind !== 'text')) return;
       replyTo = null; editing = m;
       input.value = m.text; autoGrow(); updateSendBtn(); renderComposeCtx(); focusInput();
       setTimeout(() => { try { input.setSelectionRange(input.value.length, input.value.length); } catch (e) {} }, 40);
@@ -5533,7 +5803,7 @@ select.field option{color:#2c1521;background:#fff}
       if (!text || !openId) return;
       if (text.length > CONFIG.MAX_TEXT) { toast('Messages can be up to ' + CONFIG.MAX_TEXT + ' characters.'); return; }
       const m = { id: uuid(), conv: openId, mine: true, text: text, ts: Date.now(), status: 'pending',
-        replyId: replyTo ? replyTo.id : null, reply: replyTo ? { id: replyTo.id, mine: replyTo.mine, text: snip(replyTo.text) } : null };
+        from: myId(), replyId: replyTo ? replyTo.id : null, reply: replyTo ? { id: replyTo.id, mine: replyTo.mine, from: replyTo.from, text: snip(labelMsg(replyTo)) } : null };
       replyTo = null; renderComposeCtx();
       input.value = ''; drafts.delete(openId); autoGrow(); updateSendBtn(); stopTyping();
       addToThread(m, true);
@@ -5541,38 +5811,81 @@ select.field option{color:#2c1521;background:#fff}
       bumpConv(m.conv, { id: m.id, body: m.text, sender: myId(), ts: m.ts, delivered: false, read: false }, false);
       insert(m);
     }
+    // Photos, videos and any other file. Uploaded to the private "chat-media" bucket, then sent as a message.
+    function sendFiles(files) {
+      if (!openId || !files || !files.length) return;
+      if (!ATT) { toast('Attachments need the updated database. Re-run schema.sql in Supabase, then try again.', { icon: 'alert', duration: 6000 }); return; }
+      if (files.length > 10) toast('Sending the first 10 files.', { icon: 'clip' });
+      files.slice(0, 10).forEach(async (f) => {
+        const conv = openId;
+        let mime = (f.type || guessMime(f.name) || 'application/octet-stream').toLowerCase();
+        let name = String(f.name || 'file').replace(/[\u0000-\u001f\u007f\\/]/g, '_').trim().slice(-200) || 'file';
+        let kind = IMG_RE.test(mime) && !/heic|heif/.test(mime) ? 'image' : (VID_RE.test(mime) ? 'video' : 'file');
+        let blob = f;
+        // Large photos are re-encoded so they send quickly (GIFs keep their animation).
+        if (kind === 'image' && mime !== 'image/gif' && f.size > 1.5 * 1048576) {
+          try { blob = await resizeImage(f, 2048, 0.85, false); mime = 'image/jpeg'; name = name.replace(/\.[^.]*$/, '') + '.jpg'; } catch (e) { blob = f; }
+        }
+        if (!blob.size) { toast('“' + name + '” is empty.', { icon: 'alert' }); return; }
+        if (blob.size > MAX_FILE) { toast('“' + name + '” is too large (max ' + fmtSize(MAX_FILE) + ').', { icon: 'alert' }); return; }
+        const id = uuid(), ext = (/\.([a-z0-9]{1,8})$/i.exec(name) || [, 'bin'])[1].toLowerCase();
+        const m = { id: id, conv: conv, mine: true, kind: kind, text: null, ts: Date.now(), status: 'pending', replyId: null, reply: null,
+          att: { path: conv + '/' + myId() + '/' + id + '.' + ext, name: name, mime: mime.slice(0, 120), size: blob.size },
+          blob: blob, localUrl: URL.createObjectURL(blob) };
+        m.from = myId();
+        if (replyTo && conv === openId) { m.replyId = replyTo.id; m.reply = { id: replyTo.id, mine: replyTo.mine, from: replyTo.from, text: snip(labelMsg(replyTo)) }; replyTo = null; renderComposeCtx(); }
+        if (conv === openId) { addToThread(m, true); scrollBottom(); }
+        bumpConv(conv, { id: id, body: labelMsg(m), sender: myId(), ts: m.ts, delivered: false, read: false }, false);
+        insert(m);
+      });
+    }
     function dropOutbox(m) { const i = outbox.indexOf(m); if (i !== -1) outbox.splice(i, 1); }
+    function refreshMine(m) { if (m.kind && m.kind !== 'text') fill(m); else updateTick(m); }
     async function insert(m) {
       if (outbox.indexOf(m) === -1) outbox.push(m);
-      const { data, error } = await sb.from('messages')
-        .insert({ id: m.id, conversation_id: m.conv, sender_id: myId(), body: m.text, reply_to_id: m.replyId || null })
-        .select('created_at').single();
-      if (error && error.code !== '23505') {
-        m.status = 'failed'; updateTick(m);
+      const fail = (error, what) => {
+        m.status = 'failed'; refreshMine(m);
         m.autoRetry = !navigator.onLine || /fetch|network/i.test(errText(error));
-        if (!m.autoRetry) toast('Message not sent: ' + authErrMsg(error), { icon: 'alert', duration: 5000 });
-        return;
+        if (!m.autoRetry) toast(what + ' not sent: ' + authErrMsg(error), { icon: 'alert', duration: 5000 });
+      };
+      const isAtt = m.kind && m.kind !== 'text';
+      if (isAtt && !m.uploaded) {
+        const up = await sb.storage.from(BUCKET).upload(m.att.path, m.blob, { contentType: m.att.mime, cacheControl: '3600', upsert: false });
+        if (up.error && !/exists|duplicate/i.test(errText(up.error))) { fail(up.error, labelMsg(m)); return; }
+        m.uploaded = true;
       }
+      const row = { id: m.id, conversation_id: m.conv, sender_id: myId(), body: m.text || null, reply_to_id: m.replyId || null };
+      if (isAtt) Object.assign(row, { kind: m.kind, attachment_path: m.att.path, attachment_name: m.att.name, attachment_mime: m.att.mime, attachment_size: m.att.size });
+      const { data, error } = await sb.from('messages').insert(row).select('created_at').single();
+      if (error && error.code !== '23505') { fail(error, isAtt ? labelMsg(m) : 'Message'); return; }
       dropOutbox(m);
       if (data && data.created_at) m.createdAt = data.created_at;
-      if (m.status === 'pending' || m.status === 'failed') { m.status = 'sent'; updateTick(m); }
+      if (m.status === 'pending' || m.status === 'failed') { m.status = 'sent'; refreshMine(m); }
     }
     // Post a text message into any conversation (used for the call history line, e.g. "📞 Voice call · 2:31").
     function postText(convId, text) {
       if (!convId || !text || !sb) return;
-      const m = { id: uuid(), conv: convId, mine: true, text: text, ts: Date.now(), status: 'pending', replyId: null, reply: null };
+      const m = { id: uuid(), conv: convId, mine: true, from: myId(), text: text, ts: Date.now(), status: 'pending', replyId: null, reply: null };
       if (convId === openId) { addToThread(m, true); if (nearBottom(260)) scrollBottom(); }
       bumpConv(convId, { id: m.id, body: text, sender: myId(), ts: m.ts, delivered: false, read: false }, false);
       insert(m);
     }
+    async function uploadGroupPhoto(blob, convId) {
+      const path = myId() + '/group-' + convId + '-' + uuid().slice(0, 8) + '.jpg';
+      const up = await sb.storage.from(SUPABASE_CONFIG.AVATAR_BUCKET).upload(path, blob, { contentType: 'image/jpeg', cacheControl: '31536000', upsert: false });
+      if (up.error) { toast('Couldn’t upload the group photo: ' + authErrMsg(up.error), { icon: 'alert' }); return null; }
+      return path;
+    }
     function callInfo(id) {
-      const c = convs.get(id || openId); if (!c) return null;
+      const c = convs.get(id || openId); if (!c || c.isGroup) return null; // calls are one-to-one
       return { conv: c.id, peerId: c.peer.id, peerName: nameOf(c.peer), peerAvatar: avatarUrl(c.peer.avatar_path) };
     }
-    function retry(m) { m.status = 'pending'; updateTick(m); insert(m); }
+    function retry(m) { m.status = 'pending'; refreshMine(m); insert(m); }
     function retryOutbox() { outbox.filter((m) => m.status === 'failed' && m.autoRetry).forEach(retry); }
     function discard(m) {
       dropOutbox(m);
+      if (m.uploaded && m.att) sb.storage.from(BUCKET).remove([m.att.path]); // tidy up the orphaned upload
+      if (m.localUrl) { try { URL.revokeObjectURL(m.localUrl); } catch (e) {} }
       if (m.conv === openId) { msgs = msgs.filter((x) => x !== m); byId.delete(m.id); renderThread(); }
     }
     async function commitEdit() {
@@ -5603,6 +5916,8 @@ select.field option{color:#2c1521;background:#fff}
         ch.on('broadcast', { event: 'typing' }, (msg) => {
           const p = (msg && msg.payload) || {};
           if (id !== openId || p.uid === myId()) return;
+          const c = convs.get(id);
+          typingWho = c && c.isGroup ? memberName(c, p.uid).split(' ')[0] : '';
           if (p.on) showTyping(); else hideTyping();
         });
         ch.on('broadcast', { event: 'call' }, (msg) => { DMCall.onSignal(id, (msg && msg.payload) || null); });
@@ -5641,36 +5956,152 @@ select.field option{color:#2c1521;background:#fff}
     }
 
     /* ---------- Header, contact info, emoji ---------- */
+    function membersLine(c) {
+      if (!c.members) return c.memberCount + ' members';
+      const names = Array.from(c.members.values()).sort((a, b) => (a.id === myId()) - (b.id === myId()))
+        .map((m) => (m.id === myId() ? 'You' : nameOf(m).split(' ')[0]));
+      const s = names.join(', ');
+      return s.length > 60 ? s.slice(0, 58) + '…' : s;
+    }
+    function paintGroupAvatar(box, c) {
+      box.classList.toggle('alt-av', !c.groupAvatar);
+      if (c.groupAvatar) { paintAvatar(box, c.title, avatarUrl(c.groupAvatar)); return; }
+      paintAvatar(box, c.title, null);
+      const ini = box.querySelector('.ini'); if (ini) ini.innerHTML = icon('users');
+    }
     function renderHeader() {
-      const p = peer(); if (!p) return;
-      const name = nameOf(p);
-      $('#dm-name').textContent = name;
-      paintAvatar($('#dm-avatar'), name, avatarUrl(p.avatar_path));
+      const c = conv(); if (!c) return;
       const st = $('#dm-status');
-      if (peerTyping) { st.textContent = 'typing…'; st.classList.add('typing'); }
-      else { st.textContent = presenceText(p.id) || (p.username ? '@' + p.username : ''); st.classList.remove('typing'); }
-      $('#dm-presence').className = 'presence' + (isOnline(p.id) ? ' ok' : '');
+      if (c.isGroup) {
+        $('#dm-name').textContent = c.title;
+        paintGroupAvatar($('#dm-avatar'), c);
+        $('#dm-presence').className = 'presence hidden';
+        if (peerTyping) { st.textContent = (typingWho ? typingWho + ' is ' : '') + 'typing…'; st.classList.add('typing'); }
+        else { st.textContent = membersLine(c); st.classList.remove('typing'); }
+      } else {
+        const p = c.peer, name = nameOf(p);
+        $('#dm-name').textContent = name;
+        $('#dm-avatar').classList.remove('alt-av');
+        paintAvatar($('#dm-avatar'), name, avatarUrl(p.avatar_path));
+        if (peerTyping) { st.textContent = 'typing…'; st.classList.add('typing'); }
+        else { st.textContent = presenceText(p.id) || (p.username ? '@' + p.username : ''); st.classList.remove('typing'); }
+        $('#dm-presence').className = 'presence' + (isOnline(p.id) ? ' ok' : '');
+      }
       if (peerRoot.classList.contains('open')) renderPeer();
     }
     function renderPeer() {
-      const p = peer(); if (!p) return;
-      paintAvatar($('#pr-dp'), nameOf(p), avatarUrl(p.avatar_path));
-      $('#pr-name').textContent = nameOf(p);
-      $('#pr-username').textContent = p.username ? '@' + p.username : '';
-      $('#pr-status').textContent = presenceText(p.id);
-      $('#pr-created').textContent = fmtDate(p.created_at);
+      const c = conv(); if (!c) return;
+      const g = !!c.isGroup;
+      $('#peer-title').textContent = g ? 'Group info' : 'Contact info';
+      $('#pr-direct-info').classList.toggle('hidden', g);
+      $('#pr-group-info').classList.toggle('hidden', !g);
+      $('#pr-leave').classList.toggle('hidden', !g);
+      if (!g) {
+        const p = c.peer;
+        $('#pr-dp').classList.remove('alt-av');
+        paintAvatar($('#pr-dp'), nameOf(p), avatarUrl(p.avatar_path));
+        $('#pr-name').textContent = nameOf(p);
+        $('#pr-username').textContent = p.username ? '@' + p.username : '';
+        $('#pr-status').textContent = presenceText(p.id);
+        $('#pr-created').textContent = fmtDate(p.created_at);
+        return;
+      }
+      paintGroupAvatar($('#pr-dp'), c);
+      $('#pr-name').textContent = c.title;
+      $('#pr-username').textContent = 'Group · ' + c.memberCount + ' member' + (c.memberCount === 1 ? '' : 's');
+      $('#pr-status').textContent = c.myRole === 'admin' ? 'You’re an admin' : '';
+      $('#pr-admin-tools').classList.toggle('hidden', c.myRole !== 'admin');
+      $('#pr-members-label').textContent = c.memberCount + ' member' + (c.memberCount === 1 ? '' : 's');
+      const box = $('#pr-members'); box.textContent = '';
+      const list = c.members ? Array.from(c.members.values()) : [];
+      list.sort((a, b) => (b.id === myId()) - (a.id === myId()) || (b.role === 'admin') - (a.role === 'admin') || nameOf(a).localeCompare(nameOf(b)));
+      list.forEach((mm) => {
+        const row = el('button', 'set-row'); row.type = 'button';
+        const av = el('span', 'avatar'); paintAvatar(av, nameOf(mm), avatarUrl(mm.avatar_path)); row.appendChild(av);
+        const lbl = el('span', 'lbl', mm.id === myId() ? 'You' : nameOf(mm));
+        if (mm.username) lbl.appendChild(el('small', null, '@' + mm.username));
+        row.appendChild(lbl);
+        if (mm.role === 'admin') row.appendChild(el('span', 'role-badge', 'Admin'));
+        if (mm.id !== myId()) row.addEventListener('click', () => memberMenu(c, mm, row));
+        box.appendChild(row);
+      });
+    }
+    function memberMenu(c, mm, anchor) {
+      const items = [['chat', 'Message ' + nameOf(mm).split(' ')[0], () => messageUser(mm.id)]];
+      if (c.myRole === 'admin') {
+        items.push(mm.role === 'admin'
+          ? ['user', 'Dismiss as admin', () => setAdmin(c, mm, false)]
+          : ['shield', 'Make group admin', () => setAdmin(c, mm, true)]);
+        items.push(['trash', 'Remove from group', () => removeMember(c, mm)]);
+      }
+      showMenu(items, anchor, true, null);
+    }
+    async function messageUser(uid) {
+      closePeer();
+      const { data, error } = await sb.rpc('get_or_create_direct_conversation', { p_other: uid });
+      if (error || !data) { toast('Couldn’t open the chat: ' + authErrMsg(error), { icon: 'alert' }); return; }
+      await loadConversations(); openConv(data);
+    }
+    async function setAdmin(c, mm, on) {
+      const { error } = await sb.rpc('set_group_admin', { p_conv: c.id, p_user: mm.id, p_admin: on });
+      if (error) { toast(/group_needs_admin/.test(errText(error)) ? 'A group needs at least one admin.' : authErrMsg(error), { icon: 'alert' }); return; }
+      await loadMembers(c); renderPeer();
+      toast(on ? nameOf(mm) + ' is now an admin' : nameOf(mm) + ' is no longer an admin', { icon: 'check' });
+    }
+    function removeMember(c, mm) {
+      confirmModal({ icon: 'leave', title: 'Remove ' + nameOf(mm) + '?', message: 'They’ll stop receiving messages from “' + c.title + '”.', confirm: 'Remove', danger: true }, async () => {
+        const { error } = await sb.rpc('remove_group_member', { p_conv: c.id, p_user: mm.id });
+        if (error) { toast(authErrMsg(error), { icon: 'alert' }); return; }
+        await loadMembers(c); renderPeer(); renderHeader();
+      });
+    }
+    function leaveGroup() {
+      const c = conv(); if (!c || !c.isGroup) return;
+      closePeer();
+      confirmModal({ icon: 'leave', title: 'Leave “' + c.title + '”?', message: 'You’ll stop receiving its messages. An admin can add you back later.', confirm: 'Leave group', danger: true }, async () => {
+        const { error } = await sb.rpc('leave_group', { p_conv: c.id });
+        if (error) { toast(authErrMsg(error), { icon: 'alert' }); return; }
+        convs.delete(c.id);
+        showScreen('chats');
+        loadConversations();
+        toast('You left “' + c.title + '”', { icon: 'leave' });
+      });
+    }
+    function renameGroup() {
+      const c = conv(); if (!c || c.myRole !== 'admin') return;
+      promptModal({ icon: 'edit', title: 'Group name', message: 'Everyone in the group will see the new name.', value: c.title, placeholder: 'Group name', confirm: 'Save', maxLength: 60 }, async (v) => {
+        const t = String(v || '').trim();
+        if (!t || t === c.title) return;
+        const { error } = await sb.rpc('update_group', { p_conv: c.id, p_title: t });
+        if (error) { toast(authErrMsg(error), { icon: 'alert' }); return; }
+        c.title = t; renderHeader(); renderList();
+      });
+    }
+    async function setGroupPhoto(file) {
+      const c = conv(); if (!c || c.myRole !== 'admin' || !file) return;
+      let blob;
+      try { blob = await Cropper.open(file); } catch (e) { toast('Couldn’t read that photo. Try a JPG or PNG.', { icon: 'alert' }); return; }
+      if (!blob) return;
+      const path = await uploadGroupPhoto(blob, c.id);
+      if (!path) return;
+      const { error } = await sb.rpc('update_group', { p_conv: c.id, p_avatar_path: path });
+      if (error) { toast(authErrMsg(error), { icon: 'alert' }); return; }
+      c.groupAvatar = path; renderHeader(); renderList();
+      toast('Group photo updated ✨', { icon: 'check' });
     }
     function openPeer() {
-      if (!peer()) return;
+      const c = conv(); if (!c) return;
       renderPeer(); closeEmoji();
       peerRoot.classList.add('open'); peerRoot.setAttribute('aria-hidden', 'false');
       setTimeout(() => $('#peer-close').focus(), 60);
+      if (c.isGroup) loadMembers(c).then(() => { if (conv() === c && peerRoot.classList.contains('open')) renderPeer(); });
     }
     function closePeer() { peerRoot.classList.remove('open'); peerRoot.setAttribute('aria-hidden', 'true'); }
     function clearChat() {
       const id = openId; if (!id) return;
       closePeer();
-      confirmModal({ icon: 'trash', title: 'Clear this chat?', message: 'All current messages will be hidden for you on every device. ' + peerName() + ' keeps their copy.', confirm: 'Clear chat', danger: true }, async () => {
+      const c = conv();
+      confirmModal({ icon: 'trash', title: 'Clear this chat?', message: 'All current messages will be hidden for you on every device. ' + (c && c.isGroup ? 'Other members keep their copy.' : peerName() + ' keeps their copy.'), confirm: 'Clear chat', danger: true }, async () => {
         const { error } = await sb.rpc('clear_conversation', { p_conversation: id });
         if (error) { toast('Couldn’t clear the chat: ' + authErrMsg(error), { icon: 'alert' }); return; }
         await loadConversations();
@@ -5734,18 +6165,34 @@ select.field option{color:#2c1521;background:#fff}
         if (!emojiPanel.classList.contains('hidden') && !emojiPanel.contains(e.target) && !emojiBtn.contains(e.target)) closeEmoji();
       });
       newPill.addEventListener('click', () => scrollBottom());
-      thread.addEventListener('scroll', () => { if (nearBottom()) newPill.classList.add('hidden'); closeMsgMenu(); }, { passive: true });
-      bindGestures(thread, { get: (id) => byId.get(id), menu: openMenu, reply: setReply, quote: jumpTo });
+      thread.addEventListener('scroll', () => { if (nearBottom()) newPill.classList.add('hidden'); }, { passive: true });
+      ['touchmove', 'wheel'].forEach((ev) => thread.addEventListener(ev, closeMsgMenu, { passive: true }));
+      bindGestures(thread, { get: (id) => byId.get(id), menu: openMenu, reply: setReply, focus: focusInput, quote: jumpTo, image: viewImage });
+      // Attachments: 📎 button, file picker, drag & drop
+      $('#dm-attach').addEventListener('click', (e) => { e.preventDefault(); if (openId) withFileAccess('dm', () => $('#dm-file-input').click()); });
+      $('#dm-file-input').addEventListener('change', (e) => { const fs = Array.from(e.target.files || []); e.target.value = ''; sendFiles(fs); });
+      thread.addEventListener('dragover', (e) => { if (openId && e.dataTransfer && Array.from(e.dataTransfer.types || []).indexOf('Files') !== -1) e.preventDefault(); });
+      thread.addEventListener('drop', (e) => { if (!openId || !e.dataTransfer || !e.dataTransfer.files.length) return; e.preventDefault(); S.fileAccessOk = true; sendFiles(Array.from(e.dataTransfer.files)); });
+      thread.addEventListener('click', (e) => {
+        const f = e.target.closest('[data-file]'); if (!f) return;
+        const m = byId.get(f.dataset.file); if (m) downloadAtt(m);
+      });
       $('#peer-close').addEventListener('click', closePeer);
       peerRoot.addEventListener('click', (e) => { if (e.target === peerRoot) closePeer(); });
       $('#pr-dp').addEventListener('click', () => { const p = peer(); const u = p && avatarUrl(p.avatar_path); if (u) openViewer(u, 'image', { title: nameOf(p), round: true }); });
       $('#pr-clear').addEventListener('click', clearChat);
+      $('#pr-leave').addEventListener('click', leaveGroup);
+      $('#pr-rename').addEventListener('click', renameGroup);
+      $('#pr-photo').addEventListener('click', () => withFileAccess('avatar', () => $('#group-photo-input').click()));
+      $('#group-photo-input').addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) setGroupPhoto(f); });
+      $('#pr-add').addEventListener('click', () => { const c = conv(); if (c && c.isGroup) { closePeer(); GroupNew.open(c); } });
       $('#chat-filter').addEventListener('input', (e) => { filter = e.target.value; renderList(); });
     }
 
     return {
       convs: convs, presence: presence,
       ensureChannel: ensureChannel, sendCall: sendCall, postText: postText, callInfo: callInfo,
+      current: () => conv(), loadMembers: loadMembers, uploadGroupPhoto: uploadGroupPhoto,
       bind: bind, start: start, stop: stop, open: openConv, onLeave: onLeave, renderList: renderList,
       loadConversations: loadConversations, resync: () => resync(false),
       onVisible: () => { if (openId && S.screen === 'dm') markReadSoon(200); resync(false); },
@@ -6077,7 +6524,7 @@ select.field option{color:#2c1521;background:#fff}
       if ($('#peer-root').classList.contains('open')) { DM.closePeer(); return true; }
       if (!emojiPanel.classList.contains('hidden')) { closeEmoji(); return true; }
       if (S.screen === 'dm' && DM.escape()) return true;
-      const backBtn = { dm: '#dm-back', search: '#search-back', welcome: '#welcome-back', waiting: '#wait-back', join: '#join-back', connecting: '#connecting-cancel', chat: '#chat-exit' }[S.screen];
+      const backBtn = { dm: '#dm-back', search: '#search-back', group: '#group-back', welcome: '#welcome-back', waiting: '#wait-back', join: '#join-back', connecting: '#connecting-cancel', chat: '#chat-exit' }[S.screen];
       if (backBtn) { $(backBtn).click(); return true; }
       return false;
     },
@@ -6093,6 +6540,141 @@ select.field option{color:#2c1521;background:#fff}
       const mo = new MutationObserver(() => this.sync());
       [viewer, modalRoot, msgMenu, callRoot, $('#crop-root')].concat($$('.sheet-root'))
         .forEach((n) => mo.observe(n, { attributes: true, attributeFilter: ['class'] }));
+    }
+  };
+
+  /* =========================================================
+     NEW GROUP / ADD MEMBERS
+     Pick people from your existing chats or find them by username / mobile number.
+     ========================================================= */
+  const GroupNew = {
+    target: null,          // null = creating a new group; a conversation = adding members to it
+    sel: new Map(),        // user id -> profile
+    photo: null, t: null, seq: 0, busy: false,
+    open(groupConv) {
+      this.target = groupConv || null;
+      this.sel.clear(); this.photo = null;
+      $('#group-screen-title').textContent = this.target ? 'Add members' : 'New group';
+      $('#group-head').classList.toggle('hidden', !!this.target);
+      $('#group-name').value = '';
+      $('#group-search').value = '';
+      $('#group-create').setAttribute('aria-label', this.target ? 'Add selected people' : 'Create group');
+      this.paintPhoto();
+      this.renderChips();
+      this.renderContacts();
+      showScreen('group');
+      setTimeout(() => { try { (this.target ? $('#group-search') : $('#group-name')).focus({ preventScroll: true }); } catch (e) {} }, 380);
+    },
+    paintPhoto() {
+      const img = $('#group-dp-img'), ini = $('#group-dp-ini');
+      if (this.photo) { img.src = URL.createObjectURL(this.photo); img.classList.remove('hidden'); ini.classList.add('hidden'); }
+      else { img.removeAttribute('src'); img.classList.add('hidden'); ini.classList.remove('hidden'); }
+    },
+    async pickPhoto(file) {
+      let blob;
+      try { blob = await Cropper.open(file); } catch (e) { toast('Couldn’t read that photo. Try a JPG or PNG.', { icon: 'alert' }); return; }
+      if (blob) { this.photo = blob; this.paintPhoto(); }
+    },
+    existing() { return this.target && this.target.members ? this.target.members : new Map(); },
+    row(u) {
+      const already = this.existing().has(u.id);
+      const b = el('button', 'conv-item' + (this.sel.has(u.id) ? ' selected' : '')); b.type = 'button';
+      const av = el('span', 'avatar'); paintAvatar(av, nameOf(u), avatarUrl(u.avatar_path)); b.appendChild(av);
+      const body = el('span', 'conv-body');
+      const top = el('span', 'conv-top'); top.appendChild(el('span', 'conv-name', nameOf(u))); body.appendChild(top);
+      body.appendChild(el('span', 'conv-sub', already ? 'Already in the group' : (u.username ? '@' + u.username : '')));
+      b.appendChild(body);
+      if (already) b.disabled = true;
+      else { const ck = el('span', 'check'); ck.innerHTML = icon('check'); b.appendChild(ck); }
+      b.addEventListener('click', () => {
+        if (this.sel.has(u.id)) this.sel.delete(u.id); else this.sel.set(u.id, u);
+        b.classList.toggle('selected', this.sel.has(u.id));
+        this.renderChips();
+      });
+      return b;
+    },
+    renderChips() {
+      const box = $('#group-chips'); box.textContent = '';
+      this.sel.forEach((u) => {
+        const c = el('span', 'chip-sel');
+        const av = el('span', 'avatar'); paintAvatar(av, nameOf(u), avatarUrl(u.avatar_path)); c.appendChild(av);
+        c.appendChild(el('span', 'nm', nameOf(u).split(' ')[0]));
+        const x = el('button'); x.type = 'button'; x.innerHTML = icon('x'); x.setAttribute('aria-label', 'Remove ' + nameOf(u));
+        x.addEventListener('click', () => { this.sel.delete(u.id); this.renderChips(); this.refreshRows(); });
+        c.appendChild(x);
+        box.appendChild(c);
+      });
+      $('#group-create').disabled = !this.sel.size || this.busy;
+      $('#group-create').style.opacity = this.sel.size ? '' : '.45';
+    },
+    refreshRows() { const q = $('#group-search').value.trim(); if (q) this.search(q); else this.renderContacts(); },
+    contacts() {
+      const seen = new Map();
+      DM.convs.forEach((c) => { if (!c.isGroup && c.peer && c.peer.id && c.peer.username) seen.set(c.peer.id, c.peer); });
+      return Array.from(seen.values()).sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
+    },
+    renderContacts() {
+      $('#group-list-label').textContent = 'Your contacts';
+      const box = $('#group-results'); box.textContent = '';
+      const list = this.contacts();
+      if (!list.length) {
+        const d = el('div', 'empty-state');
+        d.appendChild(el('span', null, 'Search for people by username or mobile number to add them.'));
+        box.appendChild(d); return;
+      }
+      list.forEach((u) => box.appendChild(this.row(u)));
+    },
+    onInput() { clearTimeout(this.t); const q = $('#group-search').value.trim(); this.t = setTimeout(() => (q ? this.search(q) : this.renderContacts()), 320); },
+    async search(raw) {
+      const q = String(raw || '').trim();
+      const digits = q.replace(/\D/g, '');
+      const phone = /^[+\d(][\d\s().-]*$/.test(q) && digits.length >= 6;
+      const query = phone ? normalizePhone(q) : cleanUsername(q);
+      const box = $('#group-results');
+      $('#group-list-label').textContent = 'Search results';
+      if (!query || (!phone && query.length < 2)) { box.textContent = ''; return; }
+      const my = ++this.seq;
+      const { data, error } = await sb.rpc('search_users', { p_query: query });
+      if (my !== this.seq) return;
+      box.textContent = '';
+      if (error) { box.appendChild(el('div', 'empty-state', authErrMsg(error))); return; }
+      if (!data || !data.length) { box.appendChild(el('div', 'empty-state', 'No one found.')); return; }
+      data.forEach((u) => box.appendChild(this.row(u)));
+    },
+    async submit() {
+      if (this.busy || !this.sel.size) return;
+      const ids = Array.from(this.sel.keys());
+      if (this.target) { // add members
+        this.busy = true;
+        const { error } = await sb.rpc('add_group_members', { p_conv: this.target.id, p_members: ids });
+        this.busy = false;
+        if (error) { toast(/too_many/.test(errText(error)) ? 'Groups can have up to 256 people.' : authErrMsg(error), { icon: 'alert' }); return; }
+        await DM.loadMembers(this.target);
+        toast('Added ' + ids.length + ' ' + (ids.length === 1 ? 'person' : 'people'), { icon: 'check' });
+        DM.open(this.target.id);
+        return;
+      }
+      const title = $('#group-name').value.trim();
+      if (!title) { toast('Give your group a name.', { icon: 'alert' }); $('#group-name').focus(); return; }
+      this.busy = true; this.renderChips();
+      const { data, error } = await sb.rpc('create_group', { p_title: title, p_members: ids });
+      if (error || !data) { this.busy = false; this.renderChips(); toast('Couldn’t create the group: ' + authErrMsg(error), { icon: 'alert' }); return; }
+      if (this.photo) {
+        const path = await DM.uploadGroupPhoto(this.photo, data);
+        if (path) await sb.rpc('update_group', { p_conv: data, p_avatar_path: path });
+      }
+      this.busy = false;
+      await DM.loadConversations();
+      DM.open(data);
+      toast('Group “' + title + '” created 🎉', { icon: 'check' });
+    },
+    bind() {
+      $('#search-new-group').addEventListener('click', () => this.open(null));
+      $('#group-back').addEventListener('click', () => { if (this.target) DM.open(this.target.id); else showScreen('search'); });
+      $('#group-search').addEventListener('input', () => this.onInput());
+      $('#group-create').addEventListener('click', () => this.submit());
+      $('#group-dp').addEventListener('click', () => withFileAccess('avatar', () => $('#group-photo-input-new').click()));
+      $('#group-photo-input-new').addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) this.pickPhoto(f); });
     }
   };
 
@@ -6170,7 +6752,7 @@ select.field option{color:#2c1521;background:#fff}
      ========================================================= */
   const App = {
     async boot() {
-      renderAuthCountries(); renderAuth(); renderDevBanner();
+      renderAuthCountries(); renderAuth();
       if (!sbConfigured()) {
         $('#config-warn').classList.remove('hidden');
         setAuthDisabled(true);
@@ -6245,6 +6827,7 @@ select.field option{color:#2c1521;background:#fff}
     $('#user-search').addEventListener('input', () => Search.onInput());
     $('#user-search').addEventListener('keydown', (e) => { if (e.key === 'Enter') { clearTimeout(Search.t); Search.run(e.target.value); } });
     DM.bind();
+    GroupNew.bind();
 
     // Profile & settings sheet
     const pr = $('#profile-root');

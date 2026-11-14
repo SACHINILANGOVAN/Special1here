@@ -78,6 +78,55 @@ create table if not exists public.messages (
   constraint messages_body_len check (char_length(body) between 1 and 4000 and btrim(body) <> '')
 );
 
+-- Attachments (photos, videos, documents). Written as idempotent ALTERs so that
+-- re-running this file upgrades an existing database in place.
+alter table public.messages alter column body drop not null;
+alter table public.messages add column if not exists kind            text not null default 'text';
+alter table public.messages add column if not exists attachment_path text;
+alter table public.messages add column if not exists attachment_name text;
+alter table public.messages add column if not exists attachment_mime text;
+alter table public.messages add column if not exists attachment_size bigint;
+alter table public.messages drop constraint if exists messages_body_len;
+-- (messages_kind / messages_payload are defined once, in the Groups block below.
+--  An attachment must live in "<conversation>/<sender>/<file>", uploaded by its sender.)
+
+-- Groups ---------------------------------------------------------------------
+-- A conversation is either direct (exactly 2 people, unique direct_key) or a group
+-- (title, optional photo, admins). Re-running this file upgrades existing data in place.
+alter table public.conversations add column if not exists is_group    boolean not null default false;
+alter table public.conversations add column if not exists title       text;
+alter table public.conversations add column if not exists avatar_path text;
+alter table public.conversations add column if not exists created_by  uuid references public.profiles (id) on delete set null;
+alter table public.conversations alter column direct_key drop not null;
+alter table public.conversations drop constraint if exists conversations_direct_key_format;
+alter table public.conversations drop constraint if exists conversations_kind;
+alter table public.conversations add constraint conversations_kind check (
+  (is_group and direct_key is null and title is not null and char_length(btrim(title)) between 1 and 60)
+  or
+  (not is_group and title is null and avatar_path is null and
+   direct_key ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+);
+alter table public.conversation_participants add column if not exists role text not null default 'member';
+alter table public.conversation_participants drop constraint if exists conversation_participants_role;
+alter table public.conversation_participants add constraint conversation_participants_role check (role in ('admin', 'member'));
+
+-- 'system' messages ("Ravi added Priya") are written only by the group functions below.
+alter table public.messages drop constraint if exists messages_kind;
+alter table public.messages add constraint messages_kind check (kind in ('text', 'image', 'video', 'file', 'system'));
+alter table public.messages drop constraint if exists messages_payload;
+alter table public.messages add constraint messages_payload check (
+  (kind in ('text', 'system')
+     and body is not null and char_length(body) between 1 and 4000 and btrim(body) <> ''
+     and attachment_path is null and attachment_name is null and attachment_mime is null and attachment_size is null)
+  or
+  (kind in ('image', 'video', 'file')
+     and attachment_path like (conversation_id::text || '/' || sender_id::text || '/%')
+     and char_length(attachment_name) between 1 and 200
+     and char_length(attachment_mime) between 1 and 120
+     and attachment_size between 1 and 52428800
+     and (body is null or char_length(body) <= 1000))
+);
+
 alter table public.conversations drop constraint if exists conversations_last_message_fk;
 alter table public.conversations
   add constraint conversations_last_message_fk
@@ -304,8 +353,14 @@ begin
     end if;
   else
     if new.id <> old.id or new.conversation_id <> old.conversation_id or new.sender_id <> old.sender_id
-       or new.created_at <> old.created_at or new.reply_to_id is distinct from old.reply_to_id then
+       or new.created_at <> old.created_at or new.reply_to_id is distinct from old.reply_to_id
+       or new.kind <> old.kind or new.attachment_path is distinct from old.attachment_path
+       or new.attachment_name is distinct from old.attachment_name or new.attachment_mime is distinct from old.attachment_mime
+       or new.attachment_size is distinct from old.attachment_size then
       raise exception 'Only the message text can be edited' using errcode = '42501';
+    end if;
+    if new.body is distinct from old.body and old.kind <> 'text' then
+      raise exception 'Attachments cannot be edited' using errcode = '42501';
     end if;
     new.edited_at := case when new.body is distinct from old.body then now() else old.edited_at end;
   end if;
@@ -478,26 +533,36 @@ begin
 end;
 $$;
 
--- Conversation list for the current user (peer profile, presence, last message, unread count).
+-- Conversation list for the current user: direct chats (peer profile + presence) and groups
+-- (title, photo, member count, my role), with last message, delivery/read state and unread count.
+drop function if exists public.get_conversations(); -- return columns changed (attachments, groups)
 create or replace function public.get_conversations()
 returns table (
-  conversation_id        uuid,
-  peer_id                uuid,
-  peer_username          text,
-  peer_display_name      text,
-  peer_avatar_path       text,
-  peer_created_at        timestamptz,
-  peer_is_online         boolean,
-  peer_last_seen_at      timestamptz,
-  last_message_id        uuid,
-  last_message_body      text,
-  last_message_sender_id uuid,
-  last_message_at        timestamptz,
-  last_message_delivered boolean,
-  last_message_read      boolean,
-  unread_count           bigint,
-  cleared_at             timestamptz,
-  created_at             timestamptz
+  conversation_id          uuid,
+  peer_id                  uuid,
+  peer_username            text,
+  peer_display_name        text,
+  peer_avatar_path         text,
+  peer_created_at          timestamptz,
+  peer_is_online           boolean,
+  peer_last_seen_at        timestamptz,
+  last_message_id          uuid,
+  last_message_body        text,
+  last_message_sender_id   uuid,
+  last_message_at          timestamptz,
+  last_message_delivered   boolean,
+  last_message_read        boolean,
+  unread_count             bigint,
+  cleared_at               timestamptz,
+  created_at               timestamptz,
+  last_message_kind        text,
+  last_message_file_name   text,
+  is_group                 boolean,
+  group_title              text,
+  group_avatar_path        text,
+  member_count             integer,
+  my_role                  text,
+  last_message_sender_name text
 )
 language sql stable security definer set search_path = public as $$
   select
@@ -505,24 +570,183 @@ language sql stable security definer set search_path = public as $$
     p.id, p.username, p.display_name, p.avatar_path, p.created_at,
     coalesce(up.is_online, false), up.last_seen_at,
     lm.id, lm.body, lm.sender_id, lm.created_at,
-    (r.message_id is not null), (r.read_at is not null),
+    -- delivered / read = every other member has a receipt (1 member for direct chats)
+    (lm.id is not null and not exists (
+       select 1 from public.conversation_participants x
+        where x.conversation_id = c.id and x.user_id <> lm.sender_id
+          and not exists (select 1 from public.message_receipts r where r.message_id = lm.id and r.user_id = x.user_id))),
+    (lm.id is not null and not exists (
+       select 1 from public.conversation_participants x
+        where x.conversation_id = c.id and x.user_id <> lm.sender_id
+          and not exists (select 1 from public.message_receipts r where r.message_id = lm.id and r.user_id = x.user_id and r.read_at is not null))),
     (select count(*) from public.messages m
       where m.conversation_id = c.id
         and m.sender_id <> me.user_id
+        and m.kind <> 'system'
         and m.created_at > greatest(coalesce(me.last_read_at, '-infinity'::timestamptz),
                                     coalesce(me.cleared_at,  '-infinity'::timestamptz))),
     me.cleared_at,
-    c.created_at
+    c.created_at,
+    lm.kind,
+    lm.attachment_name,
+    c.is_group,
+    c.title,
+    c.avatar_path,
+    (select count(*)::integer from public.conversation_participants x where x.conversation_id = c.id),
+    me.role,
+    (select coalesce(sp.display_name, sp.username) from public.profiles sp where sp.id = lm.sender_id)
   from public.conversation_participants me
-  join public.conversations c             on c.id = me.conversation_id
-  join public.conversation_participants o on o.conversation_id = c.id and o.user_id <> me.user_id
-  join public.profiles p                  on p.id = o.user_id
-  left join public.user_presence up       on up.user_id = p.id
-  left join public.messages lm            on lm.id = c.last_message_id
-                                         and lm.created_at > coalesce(me.cleared_at, '-infinity'::timestamptz)
-  left join public.message_receipts r     on r.message_id = lm.id and r.user_id = o.user_id
+  join public.conversations c on c.id = me.conversation_id
+  left join lateral (
+    select o.user_id from public.conversation_participants o
+     where o.conversation_id = c.id and o.user_id <> me.user_id and not c.is_group
+     limit 1
+  ) o on true
+  left join public.profiles p        on p.id = o.user_id
+  left join public.user_presence up  on up.user_id = p.id
+  left join public.messages lm       on lm.id = c.last_message_id
+                                    and lm.created_at > coalesce(me.cleared_at, '-infinity'::timestamptz)
   where me.user_id = auth.uid()
+    and (c.is_group or o.user_id is not null)
   order by coalesce(c.last_message_at, c.created_at) desc;
+$$;
+
+-- ---------------------------------------------------------------- groups ---
+create or replace function public.display_name_of(p_user uuid)
+returns text language sql stable security definer set search_path = public as $$
+  select coalesce(display_name, username, 'Someone') from public.profiles where id = p_user;
+$$;
+
+-- Internal: write a centred system line ("Ravi added Priya") into a group.
+create or replace function public.group_system_message(p_conv uuid, p_text text)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  insert into public.messages (conversation_id, sender_id, kind, body)
+  values (p_conv, auth.uid(), 'system', left(p_text, 4000));
+end;
+$$;
+
+create or replace function public.is_group_admin(p_conv uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from public.conversation_participants cp
+    join public.conversations c on c.id = cp.conversation_id
+    where cp.conversation_id = p_conv and cp.user_id = auth.uid() and cp.role = 'admin' and c.is_group
+  );
+$$;
+
+-- Create a group with the given members (the creator becomes admin). Max 256 people.
+create or replace function public.create_group(p_title text, p_members uuid[])
+returns uuid language plpgsql security definer set search_path = public as $$
+declare
+  v_me uuid := auth.uid();
+  v_title text := btrim(coalesce(p_title, ''));
+  v_id uuid;
+  v_members uuid[];
+begin
+  if v_me is null then raise exception 'not_authenticated' using errcode = '28000'; end if;
+  if char_length(v_title) not between 1 and 60 then raise exception 'invalid_title' using errcode = '22023'; end if;
+  select coalesce(array_agg(distinct p.id), '{}') into v_members
+    from public.profiles p
+   where p.id = any (coalesce(p_members, '{}')) and p.id <> v_me and p.username is not null;
+  if cardinality(v_members) < 1 then raise exception 'no_members' using errcode = '22023'; end if;
+  if cardinality(v_members) > 255 then raise exception 'too_many_members' using errcode = '22023'; end if;
+
+  insert into public.conversations (is_group, title, created_by) values (true, v_title, v_me) returning id into v_id;
+  insert into public.conversation_participants (conversation_id, user_id, role) values (v_id, v_me, 'admin');
+  insert into public.conversation_participants (conversation_id, user_id, role)
+  select v_id, unnest(v_members), 'member';
+  perform public.group_system_message(v_id, public.display_name_of(v_me) || ' created the group “' || v_title || '”');
+  return v_id;
+end;
+$$;
+
+create or replace function public.add_group_members(p_conv uuid, p_members uuid[])
+returns integer language plpgsql security definer set search_path = public as $$
+declare v_added uuid[]; v_names text;
+begin
+  if not public.is_group_admin(p_conv) then raise exception 'not_admin' using errcode = '42501'; end if;
+  select coalesce(array_agg(distinct p.id), '{}') into v_added
+    from public.profiles p
+   where p.id = any (coalesce(p_members, '{}')) and p.username is not null
+     and not exists (select 1 from public.conversation_participants cp where cp.conversation_id = p_conv and cp.user_id = p.id);
+  if cardinality(v_added) = 0 then return 0; end if;
+  if (select count(*) from public.conversation_participants where conversation_id = p_conv) + cardinality(v_added) > 256 then
+    raise exception 'too_many_members' using errcode = '22023';
+  end if;
+  insert into public.conversation_participants (conversation_id, user_id, role) select p_conv, unnest(v_added), 'member';
+  select string_agg(public.display_name_of(u), ', ') into v_names from unnest(v_added) u;
+  perform public.group_system_message(p_conv, public.display_name_of(auth.uid()) || ' added ' || v_names);
+  return cardinality(v_added);
+end;
+$$;
+
+create or replace function public.remove_group_member(p_conv uuid, p_user uuid)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_group_admin(p_conv) then raise exception 'not_admin' using errcode = '42501'; end if;
+  if p_user = auth.uid() then raise exception 'use_leave_group' using errcode = '22023'; end if;
+  delete from public.conversation_participants where conversation_id = p_conv and user_id = p_user;
+  if found then
+    perform public.group_system_message(p_conv, public.display_name_of(auth.uid()) || ' removed ' || public.display_name_of(p_user));
+  end if;
+end;
+$$;
+
+create or replace function public.set_group_admin(p_conv uuid, p_user uuid, p_admin boolean)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_group_admin(p_conv) then raise exception 'not_admin' using errcode = '42501'; end if;
+  update public.conversation_participants set role = case when p_admin then 'admin' else 'member' end
+   where conversation_id = p_conv and user_id = p_user;
+  if not exists (select 1 from public.conversation_participants where conversation_id = p_conv and role = 'admin') then
+    raise exception 'group_needs_admin' using errcode = '22023';
+  end if;
+end;
+$$;
+
+-- Leave a group. The last admin leaving promotes the longest-standing member; the last person deletes the group.
+create or replace function public.leave_group(p_conv uuid)
+returns void language plpgsql security definer set search_path = public as $$
+declare v_me uuid := auth.uid();
+begin
+  if not exists (select 1 from public.conversation_participants cp join public.conversations c on c.id = cp.conversation_id
+                  where cp.conversation_id = p_conv and cp.user_id = v_me and c.is_group) then
+    raise exception 'not_a_participant' using errcode = '42501';
+  end if;
+  perform public.group_system_message(p_conv, public.display_name_of(v_me) || ' left');
+  delete from public.conversation_participants where conversation_id = p_conv and user_id = v_me;
+  if not exists (select 1 from public.conversation_participants where conversation_id = p_conv) then
+    delete from public.conversations where id = p_conv;
+  elsif not exists (select 1 from public.conversation_participants where conversation_id = p_conv and role = 'admin') then
+    update public.conversation_participants set role = 'admin'
+     where conversation_id = p_conv
+       and user_id = (select user_id from public.conversation_participants where conversation_id = p_conv order by joined_at limit 1);
+  end if;
+end;
+$$;
+
+-- Rename and/or change the photo (admins). Photos live in the public "avatars" bucket under the admin's folder.
+create or replace function public.update_group(p_conv uuid, p_title text default null, p_avatar_path text default null, p_clear_avatar boolean default false)
+returns void language plpgsql security definer set search_path = public as $$
+declare v_old text; v_title text := nullif(btrim(coalesce(p_title, '')), '');
+begin
+  if not public.is_group_admin(p_conv) then raise exception 'not_admin' using errcode = '42501'; end if;
+  if v_title is not null and char_length(v_title) > 60 then raise exception 'invalid_title' using errcode = '22023'; end if;
+  if p_avatar_path is not null and p_avatar_path not like (auth.uid()::text || '/%') then
+    raise exception 'invalid_avatar_path' using errcode = '22023';
+  end if;
+  select title into v_old from public.conversations where id = p_conv;
+  update public.conversations
+     set title = coalesce(v_title, title),
+         avatar_path = case when p_clear_avatar then null else coalesce(p_avatar_path, avatar_path) end
+   where id = p_conv;
+  if v_title is not null and v_title is distinct from v_old then
+    perform public.group_system_message(p_conv, public.display_name_of(auth.uid()) || ' changed the group name to “' || v_title || '”');
+  elsif p_avatar_path is not null or p_clear_avatar then
+    perform public.group_system_message(p_conv, public.display_name_of(auth.uid()) || ' changed the group photo');
+  end if;
+end;
 $$;
 
 -- Mark incoming messages as delivered (one conversation, or all when null).
@@ -709,7 +933,8 @@ grant select on public.user_presence, public.conversations, public.conversation_
 grant select (room_id, user_id, role, peer_token, joined_at, cleared_at) on public.secret_room_participants to authenticated;
 
 grant select on public.messages to authenticated;
-grant insert (id, conversation_id, sender_id, body, reply_to_id) on public.messages to authenticated;
+grant insert (id, conversation_id, sender_id, body, reply_to_id,
+              kind, attachment_path, attachment_name, attachment_mime, attachment_size) on public.messages to authenticated;
 grant update (body) on public.messages to authenticated;
 
 grant select on public.secret_room_messages to authenticated;
@@ -729,7 +954,10 @@ begin
     'public.clear_conversation(uuid)', 'public.open_secret_room(text, uuid)', 'public.join_secret_room(text, text)',
     'public.leave_secret_room(uuid)', 'public.close_secret_room(uuid)', 'public.get_my_secret_room()',
     'public.mark_room_messages_delivered(uuid[])', 'public.clear_secret_room_history(uuid)',
-    'public.handle_new_user()', 'public.handle_user_phone_change()', 'public.messages_after_insert()'
+    'public.handle_new_user()', 'public.handle_user_phone_change()', 'public.messages_after_insert()',
+    'public.display_name_of(uuid)', 'public.group_system_message(uuid, text)', 'public.is_group_admin(uuid)',
+    'public.create_group(text, uuid[])', 'public.add_group_members(uuid, uuid[])', 'public.remove_group_member(uuid, uuid)',
+    'public.set_group_admin(uuid, uuid, boolean)', 'public.leave_group(uuid)', 'public.update_group(uuid, text, text, boolean)'
   ] loop
     execute format('revoke all on function %s from public, anon, authenticated', f);
   end loop;
@@ -742,7 +970,10 @@ begin
     'public.mark_conversation_read(uuid)', 'public.clear_conversation(uuid)', 'public.open_secret_room(text, uuid)',
     'public.join_secret_room(text, text)', 'public.leave_secret_room(uuid)', 'public.close_secret_room(uuid)',
     'public.get_my_secret_room()', 'public.mark_room_messages_delivered(uuid[])', 'public.clear_secret_room_history(uuid)',
-    'public.username_available(text)', 'public.login_email_for_username(text)'
+    'public.username_available(text)', 'public.login_email_for_username(text)',
+    'public.create_group(text, uuid[])', 'public.add_group_members(uuid, uuid[])', 'public.remove_group_member(uuid, uuid)',
+    'public.set_group_admin(uuid, uuid, boolean)', 'public.leave_group(uuid)', 'public.update_group(uuid, text, text, boolean)'
+    -- (display_name_of, group_system_message and is_group_admin stay internal)
   ] loop
     execute format('grant execute on function %s to authenticated', f);
   end loop;
@@ -796,10 +1027,10 @@ create policy "messages: participants can read" on public.messages
   for select to authenticated using (public.is_conversation_participant(conversation_id));
 create policy "messages: participants can send" on public.messages
   for insert to authenticated
-  with check (sender_id = (select auth.uid()) and public.is_conversation_participant(conversation_id));
+  with check (sender_id = (select auth.uid()) and kind <> 'system' and public.is_conversation_participant(conversation_id));
 create policy "messages: sender can edit" on public.messages
   for update to authenticated
-  using (sender_id = (select auth.uid()) and public.is_conversation_participant(conversation_id))
+  using (sender_id = (select auth.uid()) and kind <> 'system' and public.is_conversation_participant(conversation_id))
   with check (sender_id = (select auth.uid()));
 
 -- message_receipts (writes only through mark_delivered / mark_conversation_read)
@@ -861,6 +1092,41 @@ create policy "avatars: owner can update" on storage.objects
 create policy "avatars: owner can delete" on storage.objects
   for delete to authenticated
   using (bucket_id = 'avatars' and (storage.foldername(name))[1] = (select auth.uid())::text);
+
+-- -----------------------------------------------------------------------------
+-- 8b. STORAGE — private-chat attachments (bucket "chat-media", PRIVATE)
+--     Path: "<conversation id>/<uploader user id>/<file>". Only the two participants
+--     can read (via short-lived signed URLs); you can only upload into your own folder.
+-- -----------------------------------------------------------------------------
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('chat-media', 'chat-media', false, 52428800, null)
+on conflict (id) do update
+  set public = false, file_size_limit = excluded.file_size_limit;
+
+create or replace function public.chat_object_conversation(p_name text)
+returns uuid language sql immutable set search_path = public as $$
+  select case
+    when p_name ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/'
+    then substring(p_name from 1 for 36)::uuid
+  end;
+$$;
+revoke all on function public.chat_object_conversation(text) from public, anon;
+grant execute on function public.chat_object_conversation(text) to authenticated;
+
+drop policy if exists "chat-media: participants can read"   on storage.objects;
+drop policy if exists "chat-media: participants can upload" on storage.objects;
+drop policy if exists "chat-media: uploader can delete"     on storage.objects;
+create policy "chat-media: participants can read" on storage.objects
+  for select to authenticated
+  using (bucket_id = 'chat-media' and public.is_conversation_participant(public.chat_object_conversation(name)));
+create policy "chat-media: participants can upload" on storage.objects
+  for insert to authenticated
+  with check (bucket_id = 'chat-media'
+              and public.is_conversation_participant(public.chat_object_conversation(name))
+              and (storage.foldername(name))[2] = (select auth.uid())::text);
+create policy "chat-media: uploader can delete" on storage.objects
+  for delete to authenticated
+  using (bucket_id = 'chat-media' and (storage.foldername(name))[2] = (select auth.uid())::text);
 
 -- =============================================================================
 -- 9. REALTIME
