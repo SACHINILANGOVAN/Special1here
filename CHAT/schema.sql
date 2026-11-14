@@ -872,7 +872,7 @@ begin
   if not exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
     create publication supabase_realtime;
   end if;
-  foreach t in array array['messages', 'message_receipts', 'user_presence', 'secret_room_messages'] loop
+  foreach t in array array['messages', 'message_receipts', 'user_presence', 'secret_room_messages', 'conversation_participants'] loop
     if not exists (
       select 1 from pg_publication_tables
        where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t

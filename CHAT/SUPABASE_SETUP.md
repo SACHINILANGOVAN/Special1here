@@ -50,7 +50,7 @@ const SUPABASE_CONFIG = {
   ANON_KEY: 'YOUR-SUPABASE-ANON-OR-PUBLISHABLE-KEY',    // ← your anon / publishable key
   AVATAR_BUCKET: 'avatars',
   USERNAME_EMAIL_DOMAIN: 'users.forever-connect.app',
-  DEFAULT_COUNTRY: ''                                   // e.g. 'IN', 'US', 'GB' — empty = detect from browser
+  DEFAULT_COUNTRY: 'IN'                                 // pre-selected country code (India)
 };
 ```
 
@@ -68,6 +68,44 @@ Dashboard → **Authentication → Sign In / Providers** (on older dashboards: *
 2. Pick an **SMS provider**: Twilio, Twilio Verify, MessageBird, Vonage or Textlocal. Then enter that provider's credentials.
 3. Keep **OTP length = 6**. The app expects 6 digits.
 4. *(Recommended while developing)* Under **Test phone numbers and OTPs**, add something like `919999999999=123456`. You can then sign in without sending a real SMS. Enter the number without the `+`, as the dashboard shows.
+
+### 4a-dev. Development mode (no SMS provider and no real SMS)
+
+`index.html` has a phone sign-in environment switch in `SUPABASE_CONFIG`:
+
+```js
+AUTH_ENV: 'development',              // 'development' | 'production'
+DEV_TEST_PHONES: ['+919597288925'],   // numbers registered as test numbers in Supabase
+```
+
+In **development**:
+- Mobile sign-in only accepts the numbers in `DEV_TEST_PHONES`. Any other number is refused before Supabase is contacted, so no real SMS can be sent and no SMS cost is incurred.
+- The sign-in screen shows a "Development mode" banner. Tap a listed number to fill it in.
+- **The fixed OTP codes are stored only in Supabase, never in the app.** Supabase Auth still verifies every code, so authentication is never bypassed. A wrong code is rejected.
+
+Supabase dashboard setup for development:
+1. **Authentication → Sign In / Providers → Phone** → enable the Phone provider.
+2. **Test Phone Numbers and OTPs:** add `919597288925=123456`. That's country code plus number, with no `+` and no spaces. Separate several pairs with commas.
+3. **SMS provider fields:** Supabase answers test numbers itself and doesn't call the provider for them, but the form may still require the fields before it will save. Use **Twilio Verify** (only Account SID, Auth Token and a Verify Service SID; Verify services can be created on a Twilio trial). Or, in a **development-only project**, enter non-working placeholder values.
+4. Save. In the app: Create account → Mobile → tap the test number → enter `123456`.
+
+### 4a-prod. Production (real users, real SMS)
+
+Keep production SMS configuration separate from development. **Best practice is two Supabase projects:**
+
+| | Development project | Production project |
+|---|---|---|
+| `AUTH_ENV` | `'development'` | `'production'` |
+| SMS provider | Twilio Verify trial, or placeholder values | Real, paid provider credentials (Twilio, Twilio Verify, MessageBird, Vonage, Textlocal) |
+| Test phone numbers | Your test numbers | **Remove them all** (or keep only internal QA numbers) |
+| `URL` / `ANON_KEY` in `index.html` | Dev project's values | Production project's values |
+
+Before going live:
+- Set `AUTH_ENV: 'production'` and empty the `DEV_TEST_PHONES` list.
+- Configure real provider credentials, and delete the test numbers from the production project.
+- Production mode accepts any number, and Supabase sends real SMS using your **SMS Message** template, e.g. `Your Forever Connect code is {{ .Code }}. Never share it.`
+
+If you use a single project for both, swap to real credentials and remove the test numbers on the day you set `AUTH_ENV` to `'production'`.
 
 ### 4b. Username + password
 
@@ -112,7 +150,12 @@ What RLS guarantees:
 | Secret rooms, members | Room members only | Only through the room functions |
 | Room messages | Room members, and only messages sent after they joined | Insert: a member, as themselves. Update: the sender, text only. |
 
-**Realtime:** Dashboard → **Database → Publications → `supabase_realtime`** should include `messages`, `message_receipts`, `user_presence` and `secret_room_messages`.
+**Realtime:** Dashboard → **Database → Publications → `supabase_realtime`** should include `messages`, `message_receipts`, `user_presence`, `secret_room_messages` and `conversation_participants`.
+
+**Private-chat voice and video calls** need no extra tables:
+- Ringing, accept/decline and connection setup travel over each conversation's private Realtime channel (`dm:<conversation id>`), which the `realtime.messages` policies restrict to the two participants.
+- Audio and video go directly device-to-device over WebRTC, using the same STUN/relay servers as Secret Room calls.
+- For more reliable calls on strict mobile or office networks, add your own TURN server to `CONFIG.CUSTOM_ICE_SERVERS` in `index.html`.
 
 Dashboard → **Realtime → Settings**: keep **"Allow public access"** turned **ON**.
 - Chat updates use Postgres Changes, which are still filtered per user by RLS.
@@ -176,6 +219,9 @@ Everything that worked before still works the same way: the 6-digit code, live p
 | "The database isn't set up yet" or "Couldn't load your profile" | Run `schema.sql` (step 2). |
 | "Mobile sign-in isn't enabled on the server yet" | Enable the Phone provider and configure an SMS provider (step 4a). |
 | "No account uses this number yet" | That number hasn't registered. Use **Create account**. |
+| "Development mode: … isn't a test number" | Use a number from `DEV_TEST_PHONES`, or switch `AUTH_ENV` to `'production'` (step 4a-prod). |
+| "Development setup needed …" | Enable the Phone provider and add the test number and OTP in Supabase (step 4a-dev). |
+| "Supabase tried to send a real SMS …" | The number in `DEV_TEST_PHONES` doesn't exactly match a Supabase test number. Fix the test list. |
 | Username sign-up says to turn off e-mail confirmation | Turn off **Confirm email** (step 4b). |
 | "Email address … is invalid" on username sign-up | Set `USERNAME_EMAIL_DOMAIN` to a domain you own (step 4b). |
 | Profile photo upload fails | Check that the `avatars` bucket and its policies exist (step 5). |

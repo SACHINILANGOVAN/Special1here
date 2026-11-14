@@ -622,6 +622,18 @@ html[data-theme="light"] .theirs .quote{background:rgba(0,0,0,.05)}
 .viewer-bar .icon-btn{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.16);color:#fff;box-shadow:none}
 .viewer-title{flex:1;font-weight:600;font-size:15px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
+.crop-root{position:fixed;inset:0;z-index:85;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;overflow:hidden;color:#fff;touch-action:none;animation:revealIn .3s var(--ease) both}
+.crop-bar{z-index:3}
+.crop-bar .btn{flex:none}
+.crop-stage{position:relative;width:min(82vw,360px,calc(var(--app-h) - 260px));aspect-ratio:1;flex:none;cursor:grab;touch-action:none}
+.crop-stage:active{cursor:grabbing}
+.crop-stage img{position:absolute;left:0;top:0;transform-origin:0 0;max-width:none;user-select:none;-webkit-user-select:none;pointer-events:none;will-change:transform}
+.crop-stage::after{content:"";position:absolute;inset:0;border-radius:50%;box-shadow:0 0 0 200vmax rgba(0,0,0,.62);border:2px solid rgba(255,255,255,.9);pointer-events:none}
+.crop-tools,.crop-hint{position:relative}
+.crop-tools{display:flex;align-items:center;gap:12px;width:min(82vw,360px);z-index:2}
+.crop-tools input{flex:1;accent-color:var(--accent);height:28px}
+.crop-z{font-size:22px;font-weight:600;opacity:.8;width:16px;text-align:center}
+.crop-hint{font-size:13px;opacity:.7;z-index:2;margin-top:-8px}
 .call-root{position:fixed;inset:0;z-index:75;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:space-between;overflow:hidden;
   background:radial-gradient(120% 70% at 50% 0%, #4a1640 0%, transparent 60%), radial-gradient(100% 60% at 50% 100%, #2a0b3d 0%, transparent 60%), #0b0610;animation:revealIn .35s var(--ease) both}
 .call-remote{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;opacity:0;transition:opacity .4s}
@@ -683,6 +695,10 @@ select.field option{color:#2c1521;background:#fff}
 .auth-links{display:flex;justify-content:center;gap:4px;flex-wrap:wrap;margin-top:6px}
 .auth-links .btn-text{font-size:14px;padding:10px 12px}
 .auth-links .btn-text:disabled{opacity:.5}
+.dev-banner{margin:2px 0 4px;padding:10px 12px;border-radius:14px;font-size:12.5px;line-height:1.45;color:var(--text-2);background:var(--tile-bg);border:1px dashed var(--warn);text-align:left}
+.dev-banner b{color:var(--warn)}
+.dev-banner span{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
+.dev-banner button{font-size:12.5px;font-weight:600;padding:4px 10px;border-radius:999px;background:var(--glass);border:1px solid var(--glass-border);color:var(--text);font-variant-numeric:tabular-nums}
 .config-warn{width:100%;margin-top:18px;padding:14px 16px;border-radius:20px;text-align:left;font-size:13.5px;line-height:1.5;color:var(--text-2);border-left:3px solid var(--warn)}
 .config-warn b{color:var(--text)}
 .config-warn code{font-size:12.5px;padding:1px 6px;border-radius:6px;background:var(--tile-bg)}
@@ -862,13 +878,17 @@ select.field option{color:#2c1521;background:#fff}
               <select class="field cc-select" id="auth-cc" aria-label="Country code"></select>
               <input class="field" id="auth-phone" type="tel" inputmode="tel" autocomplete="tel-national" placeholder="Mobile number" maxlength="20" enterkeyhint="send">
             </div>
-            <p class="field-hint">We’ll text you a 6-digit code to verify it’s you.</p>
+            <p class="field-hint" id="auth-phone-hint">We’ll text you a 6-digit code to verify it’s you.</p>
+            <div class="dev-banner hidden" id="auth-dev-banner" role="note">
+              <b>Development mode</b> — only Supabase test numbers can sign in; no real SMS is sent.
+              <span id="auth-dev-list"></span>
+            </div>
             <p class="error-text" id="auth-phone-error" role="alert"></p>
             <button class="btn btn-primary btn-block" id="auth-phone-btn" type="submit"><i data-icon="send"></i><span>Send code</span></button>
           </form>
 
           <form class="auth-form hidden" id="auth-otp-form" autocomplete="off" novalidate>
-            <p class="otp-hint">Enter the 6-digit code sent to<br><b id="auth-otp-to"></b></p>
+            <p class="otp-hint"><span id="auth-otp-lead">Enter the 6-digit code sent to</span><br><b id="auth-otp-to"></b></p>
             <div class="otp" id="auth-otp">
               <div class="otp-box"></div><div class="otp-box"></div><div class="otp-box"></div>
               <div class="otp-box"></div><div class="otp-box"></div><div class="otp-box"></div>
@@ -1160,6 +1180,8 @@ select.field option{color:#2c1521;background:#fff}
           <span class="peer-status" id="dm-status" role="status"></span>
         </button>
         <div class="hdr-actions">
+          <button class="icon-btn" id="dm-voice" aria-label="Voice call" title="Voice call"><i data-icon="phone"></i></button>
+          <button class="icon-btn" id="dm-video" aria-label="Video call" title="Video call"><i data-icon="video"></i></button>
           <button class="icon-btn" id="dm-more" aria-label="Conversation options" title="Options"><i data-icon="more"></i></button>
         </div>
       </header>
@@ -1319,6 +1341,22 @@ select.field option{color:#2c1521;background:#fff}
   <div class="viewer-stage" id="viewer-stage"></div>
 </div>
 
+<!-- ===================== PROFILE PHOTO CROPPER ===================== -->
+<div class="crop-root hidden" id="crop-root" role="dialog" aria-modal="true" aria-labelledby="crop-title">
+  <div class="viewer-bar crop-bar">
+    <button class="icon-btn" id="crop-cancel" aria-label="Cancel"><i data-icon="x"></i></button>
+    <div class="viewer-title" id="crop-title">Move and scale</div>
+    <button class="btn btn-primary btn-sm" id="crop-done"><i data-icon="check"></i>Done</button>
+  </div>
+  <div class="crop-stage" id="crop-stage"><img id="crop-img" alt="" draggable="false"></div>
+  <div class="crop-tools">
+    <span class="crop-z" aria-hidden="true">−</span>
+    <input type="range" id="crop-zoom" min="1" max="4" step="0.01" value="1" aria-label="Zoom">
+    <span class="crop-z" aria-hidden="true">+</span>
+  </div>
+  <p class="crop-hint">Drag to position · pinch, scroll or slide to zoom</p>
+</div>
+
 <!-- ===================== CALL ===================== -->
 <div class="call-root hidden" id="call-root" role="dialog" aria-label="Call">
   <video class="call-remote" id="call-remote" autoplay playsinline></video>
@@ -1351,9 +1389,24 @@ select.field option{color:#2c1521;background:#fff}
     // Username accounts are stored in Supabase Auth as "<username>@<this domain>".
     // No e-mail is ever sent to it (turn OFF "Confirm email" in Auth settings).
     USERNAME_EMAIL_DOMAIN: 'users.forever-connect.app',
-    // ISO country code pre-selected for mobile sign-in, e.g. 'IN', 'US', 'GB'. Empty = detect from the browser.
-    DEFAULT_COUNTRY: ''
+    // ISO country code pre-selected for mobile sign-in and used for numbers typed without "+".
+    DEFAULT_COUNTRY: 'IN',
+
+    // ---- Phone sign-in environment ------------------------------------------------
+    // 'development': mobile sign-in is limited to the Supabase TEST numbers listed below.
+    //   Their fixed OTP codes live ONLY in Supabase (Auth → Phone → Test Phone Numbers and
+    //   OTPs) — never in this file — and Supabase never sends a real SMS for them.
+    //   Any other number is refused here, so no real SMS is sent and no SMS provider is needed.
+    // 'production': any mobile number; Supabase sends real SMS through your provider.
+    // Authentication is never bypassed in either mode: every code is verified by Supabase Auth.
+    AUTH_ENV: 'development',
+    // E.164 numbers that are configured as test numbers in Supabase (used only in development).
+    DEV_TEST_PHONES: ['+919597288925']
   };
+  const AUTH_DEV = SUPABASE_CONFIG.AUTH_ENV === 'development';
+  const DEV_PHONES = (SUPABASE_CONFIG.DEV_TEST_PHONES || [])
+    .map((p) => '+' + String(p).replace(/\D/g, ''))
+    .filter((p) => /^\+[1-9]\d{6,14}$/.test(p));
   const SUPABASE_SRC = [
     'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js',
     'https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js'
@@ -1603,7 +1656,7 @@ select.field option{color:#2c1521;background:#fff}
      SESSION TEARDOWN (invalidates everything)
      ========================================================= */
   function teardown() {
-    if (S.call) { send({ type: 'call-end', callId: S.call.id, reason: 'ended' }); endCall('hangup'); }
+    if (S.call && S.call.kind !== 'dm') { send({ type: 'call-end', callId: S.call.id, reason: 'ended' }); endCall('hangup'); }
     S.generation++;
     clearAllTimers();
     Room.detach();
@@ -1887,7 +1940,7 @@ select.field option{color:#2c1521;background:#fff}
     S.conn = null; S.guestToken = null; S.connected = false; S.hadPartner = false; S.lastGuestPeer = null;
     stopHeartbeat(); hideTyping();
     try { if (c) c.close(); } catch (e) {}
-    if (S.call) endCall('remote-ended');
+    if (S.call && S.call.kind !== 'dm') endCall('remote-ended');
     S.peerLastSeen = Date.now(); S.peerActive = false;
     stallIncoming(true);
     S.messages.forEach((m) => { if (m.mine && !m.sys && m.status !== 'delivered') { m.status = 'failed'; if (m.kind !== 'text') refreshMsgEl(m); else updateTick(m); } });
@@ -2353,9 +2406,9 @@ select.field option{color:#2c1521;background:#fff}
       case 'file-meta': onFileMeta(d); return;
       case 'file-chunk': onFileChunk(d); return;
       case 'file-end': onFileEnd(d); return;
-      case 'call-ring': if (S.call && S.call.dir === 'out' && d.callId === S.call.id) { S.call.ringAck = true; renderCallStatus(); } return;
-      case 'call-end': onRemoteCallEnd(d); return;
-      case 'call-state': if (S.call && d.callId === S.call.id && typeof d.video === 'boolean') { S.call.remoteVideo = d.video; renderCall(); } return;
+      case 'call-ring': if (S.call && S.call.kind !== 'dm' && S.call.dir === 'out' && d.callId === S.call.id) { S.call.ringAck = true; renderCallStatus(); } return;
+      case 'call-end': if (!S.call || S.call.kind !== 'dm') onRemoteCallEnd(d); return;
+      case 'call-state': if (S.call && S.call.kind !== 'dm' && d.callId === S.call.id && typeof d.video === 'boolean') { S.call.remoteVideo = d.video; renderCall(); } return;
       case 'brb': if (S.connected) { if (S.peerActive) S.peerLastSeen = Date.now(); S.peerActive = false; onConnLost(S.conn, 'brb'); } return;
       case 'leave': if (S.role === 'host') partnerLeft(); return;
       case 'session-ended': if (S.role === 'guest') guestSessionEnded(d.reason === 'closed' ? 'closed' : 'changed'); return;
@@ -3418,6 +3471,7 @@ select.field option{color:#2c1521;background:#fff}
     if (name === 'chat') { S.unread = 0; scrollToBottom(true); }
     if (name === 'join') setTimeout(() => { try { codeInput.focus({ preventScroll: true }); } catch (e) { codeInput.focus(); } }, 380);
     updateUI();
+    Nav.sync(); // keep the back button one step behind the current screen
   }
 
   function goToActive() {
@@ -3697,6 +3751,7 @@ select.field option{color:#2c1521;background:#fff}
   async function acceptCall(withVideo) {
     const c = S.call;
     if (!c || c.state !== 'incoming') return;
+    if (c.kind === 'dm') { DMCall.accept(withVideo); return; }
     c.state = 'connecting';
     Tone.stop(); stopTitleFlash(); clearTimer('callRing'); closeNotifs('fc-call');
     renderCall();
@@ -3712,14 +3767,18 @@ select.field option{color:#2c1521;background:#fff}
     renderCall();
   }
 
+  // Signal the other side through the right transport (Secret Room data channel or private-chat Realtime).
+  function callSignal(c, roomPacket, dmPayload) {
+    if (c.kind === 'dm') DMCall.signal(c, dmPayload); else send(roomPacket);
+  }
   function declineCall() {
     const c = S.call; if (!c) return;
-    send({ type: 'call-end', callId: c.id, reason: 'declined' });
+    callSignal(c, { type: 'call-end', callId: c.id, reason: 'declined' }, { t: 'decline', reason: 'declined' });
     endCall('declined');
   }
   function hangUp() {
     const c = S.call; if (!c) return;
-    send({ type: 'call-end', callId: c.id, reason: c.startedAt ? 'ended' : 'cancel' });
+    callSignal(c, { type: 'call-end', callId: c.id, reason: c.startedAt ? 'ended' : 'cancel' }, { t: 'end' });
     endCall(c.startedAt ? 'hangup' : 'cancel');
   }
   function onRemoteCallEnd(d) {
@@ -3756,19 +3815,24 @@ select.field option{color:#2c1521;background:#fff}
     clearTimer('callRing'); clearInterval(callTick); callTick = null;
     Tone.stop(); stopTitleFlash();
     try { if (c.mc) c.mc.close(); } catch (e) {}
+    if (c.kind === 'dm') DMCall.cleanup(c);
     stopStream(c.local);
     callRemote.srcObject = null; callLocal.srcObject = null;
     callRoot.classList.add('hidden');
     closeNotifs('fc-call');
     if (silent) return;
+    const dm = c.kind === 'dm', who = dm ? c.peerName : peerName();
     const kind = c.video ? 'Video call' : 'Voice call';
     let text = null;
     if (c.startedAt) text = '📞 ' + kind + ' · ' + fmtDur(Date.now() - c.startedAt);
-    else if (c.dir === 'out') text = { declined: '📞 Call declined', 'no-answer': '📞 No answer', busy: '📞 Your special person is on another call', failed: '📞 Call couldn’t connect', cancel: '📞 Cancelled ' + kind.toLowerCase() }[reason] || null;
+    else if (c.dir === 'out') text = { declined: '📞 Call declined', 'no-answer': '📞 No answer', busy: '📞 ' + (dm ? who + ' is' : 'Your special person is') + ' on another call', failed: '📞 Call couldn’t connect', cancel: '📞 Cancelled ' + kind.toLowerCase() }[reason] || null;
     else text = reason === 'declined' ? '📞 Declined ' + kind.toLowerCase() : (reason === 'missed' || reason === 'failed' || reason === 'remote-ended') ? '📞 Missed ' + kind.toLowerCase() : null;
-    if (text && S.role) addSystem(text);
-    if (!c.startedAt && c.dir === 'in' && reason === 'missed' && !myFocused()) showNotify(peerName(), 'Missed ' + kind.toLowerCase(), { tag: 'fc-missed', kind: 'msg' });
-    if (!c.startedAt && c.dir === 'in' && reason === 'missed') toast('Missed ' + kind.toLowerCase() + ' from ' + peerName(), { icon: 'phone', action: S.screen !== 'chat' ? { label: 'Open', fn: goToActive } : null });
+    if (dm) DMCall.logCall(c, reason);
+    else if (text && S.role) addSystem(text);
+    const open = dm ? () => DM.open(c.conv) : goToActive;
+    if (!c.startedAt && c.dir === 'in' && reason === 'missed' && !myFocused()) showNotify(who, 'Missed ' + kind.toLowerCase(), { tag: 'fc-missed', kind: dm ? 'dm' : 'msg', conv: dm ? c.conv : null });
+    if (!c.startedAt && c.dir === 'in' && reason === 'missed') toast('Missed ' + kind.toLowerCase() + ' from ' + who, { icon: 'phone', action: { label: 'Open', fn: open } });
+    else if (dm && text && !c.startedAt && c.dir === 'out' && reason !== 'cancel') toast(text, { icon: 'phone' });
   }
 
   function flashTitle(t) {
@@ -3788,7 +3852,7 @@ select.field option{color:#2c1521;background:#fff}
     const c = S.call; if (!c || !hasLiveVideo(c.local)) return;
     c.camOff = !c.camOff;
     c.local.getVideoTracks().forEach((t) => { t.enabled = !c.camOff; });
-    send({ type: 'call-state', callId: c.id, video: !c.camOff });
+    callSignal(c, { type: 'call-state', callId: c.id, video: !c.camOff }, { t: 'state', video: !c.camOff });
     renderCall();
   }
   async function flipCam() {
@@ -3809,7 +3873,7 @@ select.field option{color:#2c1521;background:#fff}
     else if (s) c.facing = facing;
     nt.enabled = !c.camOff;
     try {
-      const pc = c.mc && c.mc.peerConnection;
+      const pc = c.pc || (c.mc && c.mc.peerConnection);
       const sender = pc && pc.getSenders().find((x) => x.track === old || (x.track && x.track.kind === 'video'));
       if (sender) await sender.replaceTrack(nt);
     } catch (e) {}
@@ -3846,7 +3910,13 @@ select.field option{color:#2c1521;background:#fff}
     callLocal.classList.toggle('hidden', !localVid);
     callLocal.classList.toggle('env', c.facing === 'environment');
     if (localVid && callLocal.srcObject !== c.local) callLocal.srcObject = c.local;
-    renderPeer();
+    if (c.kind === 'dm') {
+      // Private-chat call: show the contact's account name & photo.
+      $('#call-name').textContent = c.peerName;
+      const cai = $('#call-av-img');
+      cai.classList.toggle('hidden', !c.peerAvatar);
+      if (c.peerAvatar) cai.src = c.peerAvatar; else cai.removeAttribute('src');
+    } else renderPeer();
     renderCallStatus();
     callControls.textContent = '';
     if (c.state === 'incoming') {
@@ -4093,7 +4163,8 @@ select.field option{color:#2c1521;background:#fff}
     modalRoot.addEventListener('click', (e) => { if (e.target === modalRoot) closeModal(); });
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape') return;
-      if (viewer.classList.contains('open')) closeViewer();
+      if (Cropper.isOpen()) Cropper.cancel();
+      else if (viewer.classList.contains('open')) closeViewer();
       else if (!msgMenu.classList.contains('hidden')) closeMsgMenu();
       else if (modalRoot.classList.contains('open')) closeModal();
       else if (sheetRoot.classList.contains('open')) closeSheet();
@@ -4231,14 +4302,8 @@ select.field option{color:#2c1521;background:#fff}
   const flagOf = (iso) => String.fromCodePoint.apply(null, iso.split('').map((c) => 0x1F1E6 + c.charCodeAt(0) - 65));
   function countryByIso(iso) { return COUNTRIES.find((c) => c.iso === iso) || COUNTRIES[0]; }
   function defaultCountry() {
-    const want = String(SUPABASE_CONFIG.DEFAULT_COUNTRY || '').toUpperCase();
-    if (COUNTRIES.some((c) => c.iso === want)) return want;
-    const langs = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || ''];
-    for (const l of langs) {
-      const r = /-([A-Za-z]{2})\b/.exec(l || '');
-      if (r && COUNTRIES.some((c) => c.iso === r[1].toUpperCase())) return r[1].toUpperCase();
-    }
-    return 'US';
+    const want = String(SUPABASE_CONFIG.DEFAULT_COUNTRY || 'IN').toUpperCase();
+    return COUNTRIES.some((c) => c.iso === want) ? want : 'IN';
   }
   function myDialCode() {
     const ph = Auth.user && Auth.user.phone ? String(Auth.user.phone).replace(/\D/g, '') : '';
@@ -4379,17 +4444,27 @@ select.field option{color:#2c1521;background:#fff}
     const c = countryByIso($('#auth-cc').value);
     const phone = toE164(c.dial, $('#auth-phone').value);
     if (!phone) { err.textContent = 'Please enter a valid mobile number.'; return; }
+    // Development guard: only Supabase test numbers, so a real SMS is never attempted.
+    if (AUTH_DEV && DEV_PHONES.indexOf(phone) === -1) {
+      err.textContent = 'Development mode: ' + phone + ' isn’t a test number. Use ' +
+        (DEV_PHONES.length ? DEV_PHONES.join(', ') : 'a number listed in DEV_TEST_PHONES') +
+        ', or set AUTH_ENV to \'production\' once an SMS provider is configured.';
+      return;
+    }
     const btn = $('#auth-phone-btn');
-    setBusy(btn, true, 'Sending…');
+    setBusy(btn, true, AUTH_DEV ? 'Requesting…' : 'Sending…');
     const { error } = await sb.auth.signInWithOtp({ phone: phone, options: { shouldCreateUser: Auth.mode === 'signup' } });
     setBusy(btn, false);
     if (error) {
       err.textContent = (Auth.mode === 'signin' && /signups? not allowed|user not found/i.test(errText(error)))
         ? 'No account uses this number yet — tap “Create account” to sign up.'
-        : authErrMsg(error);
+        : phoneErrMsg(error);
       return;
     }
     Auth.otpPhone = phone;
+    $('#auth-otp-lead').textContent = AUTH_DEV
+      ? 'Enter the fixed test code you set in Supabase for'
+      : 'Enter the 6-digit code sent to';
     $('#auth-otp-to').textContent = phone;
     $('#auth-otp-input').value = '';
     renderAuth(); renderAuthOtp(); startResendCooldown();
@@ -4398,9 +4473,45 @@ select.field option{color:#2c1521;background:#fff}
   async function resendOtp() {
     if (!Auth.otpPhone || Date.now() < Auth.resendAt) return;
     const { error } = await sb.auth.signInWithOtp({ phone: Auth.otpPhone, options: { shouldCreateUser: Auth.mode === 'signup' } });
-    if (error) { $('#auth-otp-error').textContent = authErrMsg(error); return; }
+    if (error) { $('#auth-otp-error').textContent = phoneErrMsg(error); return; }
     startResendCooldown();
-    toast('A new code is on its way 📩', { icon: 'send' });
+    toast(AUTH_DEV ? 'Test number: use the fixed code set in Supabase' : 'A new code is on its way 📩', { icon: 'send' });
+  }
+  // Phone-specific errors, with development-mode setup guidance.
+  function phoneErrMsg(error) {
+    const m = errText(error);
+    if (AUTH_DEV && /phone provider|sms provider|unsupported phone|sms.*(not|disabled)|phone.*(disabled|not enabled)|signups? not allowed for (otp|phone)/i.test(m)) {
+      return 'Development setup needed: in Supabase → Authentication → Sign In / Providers → Phone, enable the Phone provider, add this number under “Test Phone Numbers and OTPs” (e.g. 919597288925=123456) and Save. See SUPABASE_SETUP.md → “Development mode”.';
+    }
+    if (AUTH_DEV && /error sending|sms|twilio|provider/i.test(m)) {
+      return 'Supabase tried to send a real SMS — this number isn’t registered as a test number in Supabase. Add it under “Test Phone Numbers and OTPs” exactly as in DEV_TEST_PHONES.';
+    }
+    return authErrMsg(error);
+  }
+  function renderDevBanner() {
+    const banner = $('#auth-dev-banner');
+    banner.classList.toggle('hidden', !AUTH_DEV);
+    $('#auth-phone-hint').textContent = AUTH_DEV
+      ? 'Development mode: sign in with a Supabase test number and its fixed code.'
+      : 'We’ll text you a 6-digit code to verify it’s you.';
+    if (!AUTH_DEV) return;
+    const list = $('#auth-dev-list');
+    list.textContent = '';
+    DEV_PHONES.forEach((p) => {
+      const b = el('button', null, p); b.type = 'button';
+      b.title = 'Use this test number';
+      b.addEventListener('click', () => {
+        const digits = p.slice(1);
+        const c = COUNTRIES.filter((x) => digits.indexOf(x.dial) === 0).sort((a, z) => z.dial.length - a.dial.length)[0];
+        if (c) { $('#auth-cc').value = c.iso; $('#auth-phone').value = digits.slice(c.dial.length); }
+        else $('#auth-phone').value = digits;
+        $('#auth-phone-error').textContent = '';
+        $('#auth-phone').focus();
+      });
+      list.appendChild(b);
+    });
+    if (!DEV_PHONES.length) list.appendChild(el('em', null, 'Add your test numbers to DEV_TEST_PHONES in index.html.'));
+    if (window.console) console.info('[ForeverConnect] AUTH_ENV=development — phone sign-in limited to Supabase test numbers: ' + DEV_PHONES.join(', '));
   }
   async function verifyOtp(e) {
     if (e) e.preventDefault();
@@ -4593,8 +4704,9 @@ select.field option{color:#2c1521;background:#fff}
       const mime = (file.type || guessMime(file.name)).toLowerCase();
       if (kindOf(mime) !== 'image') { toast('Please choose a photo.', { icon: 'alert' }); return; }
       let blob;
-      try { blob = await resizeImage(file, 512, 0.86, true); }
+      try { blob = await Cropper.open(file); } // the user picks the crop
       catch (e) { toast('Couldn’t read that photo. Try a JPG or PNG.', { icon: 'alert' }); return; }
+      if (!blob) return; // cancelled
       const bucket = sb.storage.from(SUPABASE_CONFIG.AVATAR_BUCKET);
       const path = myId() + '/' + uuid() + '.jpg';
       toast('Uploading photo…', { icon: 'camera' });
@@ -4652,13 +4764,17 @@ select.field option{color:#2c1521;background:#fff}
         const e164 = normalizePhone(v);
         if (!e164) { toast('That mobile number doesn’t look right.', { icon: 'alert' }); return; }
         if (e164 === cur) return;
+        if (AUTH_DEV && DEV_PHONES.indexOf(e164) === -1) {
+          toast('Development mode: only Supabase test numbers (' + (DEV_PHONES.join(', ') || 'none listed') + ') can be verified.', { icon: 'alert', duration: 6000 });
+          return;
+        }
         const { error } = await sb.auth.updateUser({ phone: e164 });
-        if (error) { toast(authErrMsg(error), { icon: 'alert', duration: 5000 }); return; }
+        if (error) { toast(phoneErrMsg(error), { icon: 'alert', duration: 6000 }); return; }
         this.verifyPhone(e164);
       });
     },
     verifyPhone(e164) {
-      promptModal({ icon: 'key', title: 'Verify your number', message: 'Enter the 6-digit code sent to ' + e164 + '.', value: '', placeholder: '123456', confirm: 'Verify', maxLength: 6, inputMode: 'numeric', autocomplete: 'one-time-code' }, async (code) => {
+      promptModal({ icon: 'key', title: 'Verify your number', message: AUTH_DEV ? 'Enter the fixed test code you set in Supabase for ' + e164 + '.' : 'Enter the 6-digit code sent to ' + e164 + '.', value: '', placeholder: '123456', confirm: 'Verify', maxLength: 6, inputMode: 'numeric', autocomplete: 'one-time-code' }, async (code) => {
         const token = String(code || '').replace(/\D/g, '');
         if (token.length !== 6) { toast('Enter the 6-digit code.', { icon: 'alert' }); this.verifyPhone(e164); return; }
         const { data, error } = await sb.auth.verifyOtp({ phone: e164, token: token, type: 'phone_change' });
@@ -4961,6 +5077,7 @@ select.field option{color:#2c1521;background:#fff}
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages' }, (p) => onMsgUpdate(p.new))
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'message_receipts' }, (p) => onReceipt(p.new))
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'message_receipts' }, (p) => onReceipt(p.new))
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'conversation_participants', filter: 'user_id=eq.' + myId() }, () => loadListSoon())
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'user_presence' }, (p) => onPresence(p.new))
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'user_presence' }, (p) => onPresence(p.new))
         .subscribe((status) => {
@@ -5075,6 +5192,9 @@ select.field option{color:#2c1521;background:#fff}
         if (!prev || seen >= prev.seen || !r.peer_is_online) presence.set(r.peer_id, { online: !!r.peer_is_online, seen: seen });
       });
       Array.from(convs.keys()).forEach((k) => { if (!keep.has(k)) convs.delete(k); });
+      // Listen for calls in recent chats (including new chats that have no messages yet).
+      Array.from(convs.values()).sort((a, b) => (b.last ? b.last.ts : b.createdTs || 0) - (a.last ? a.last.ts : a.createdTs || 0))
+        .slice(0, 80).forEach((c) => ensureChannel(c.id));
       loaded = true;
       renderList();
       if (openId) renderHeader();
@@ -5437,6 +5557,18 @@ select.field option{color:#2c1521;background:#fff}
       if (data && data.created_at) m.createdAt = data.created_at;
       if (m.status === 'pending' || m.status === 'failed') { m.status = 'sent'; updateTick(m); }
     }
+    // Post a text message into any conversation (used for the call history line, e.g. "📞 Voice call · 2:31").
+    function postText(convId, text) {
+      if (!convId || !text || !sb) return;
+      const m = { id: uuid(), conv: convId, mine: true, text: text, ts: Date.now(), status: 'pending', replyId: null, reply: null };
+      if (convId === openId) { addToThread(m, true); if (nearBottom(260)) scrollBottom(); }
+      bumpConv(convId, { id: m.id, body: text, sender: myId(), ts: m.ts, delivered: false, read: false }, false);
+      insert(m);
+    }
+    function callInfo(id) {
+      const c = convs.get(id || openId); if (!c) return null;
+      return { conv: c.id, peerId: c.peer.id, peerName: nameOf(c.peer), peerAvatar: avatarUrl(c.peer.avatar_path) };
+    }
     function retry(m) { m.status = 'pending'; updateTick(m); insert(m); }
     function retryOutbox() { outbox.filter((m) => m.status === 'failed' && m.autoRetry).forEach(retry); }
     function discard(m) {
@@ -5461,8 +5593,10 @@ select.field option{color:#2c1521;background:#fff}
     /* ---------- Typing indicator (private Realtime broadcast channel "dm:<conversation>") ----------
        Both people must join the same topic, so one channel per opened conversation is kept for
        the session and reused (re-creating a just-removed topic can race), then removed on logout. */
-    function subscribeTyping() {
-      const id = openId; if (!id) return;
+    // One private channel per conversation carries typing + call signalling. Kept for all recent
+    // conversations (not only the open one) so incoming calls ring anywhere in the app.
+    function ensureChannel(id) {
+      if (!id || !sb) return null;
       let ch = typingChans.get(id);
       if (!ch) {
         ch = sb.channel('dm:' + id, { config: { private: true, broadcast: { self: false } } });
@@ -5471,10 +5605,16 @@ select.field option{color:#2c1521;background:#fff}
           if (id !== openId || p.uid === myId()) return;
           if (p.on) showTyping(); else hideTyping();
         });
-        ch.subscribe((status) => { if (status === 'CHANNEL_ERROR' && window.console) console.warn('[ForeverConnect] typing channel unavailable — check the Realtime Authorization policies in schema.sql'); });
+        ch.on('broadcast', { event: 'call' }, (msg) => { DMCall.onSignal(id, (msg && msg.payload) || null); });
+        ch.subscribe((status) => { if (status === 'CHANNEL_ERROR' && window.console) console.warn('[ForeverConnect] conversation channel unavailable — check the Realtime Authorization policies in schema.sql'); });
         typingChans.set(id, ch);
       }
-      typingCh = ch;
+      return ch;
+    }
+    function subscribeTyping() { typingCh = ensureChannel(openId); }
+    function sendCall(id, payload) {
+      const ch = ensureChannel(id); if (!ch) return;
+      try { const r = ch.send({ type: 'broadcast', event: 'call', payload: payload }); if (r && r.catch) r.catch(() => {}); } catch (e) {}
     }
     function unsubscribeTyping() { typingCh = null; hideTyping(); }
     function removeTypingChannels() { typingChans.forEach((ch) => { try { sb.removeChannel(ch); } catch (e) {} }); typingChans.clear(); typingCh = null; }
@@ -5576,6 +5716,8 @@ select.field option{color:#2c1521;background:#fff}
     function bind() {
       buildEmoji();
       $('#dm-back').addEventListener('click', () => showScreen('chats'));
+      $('#dm-voice').addEventListener('click', () => DMCall.start(false));
+      $('#dm-video').addEventListener('click', () => DMCall.start(true));
       $('#dm-avatar').addEventListener('click', openPeer);
       $('#dm-info').addEventListener('click', openPeer);
       $('#dm-more').addEventListener('click', (e) => {
@@ -5603,6 +5745,7 @@ select.field option{color:#2c1521;background:#fff}
 
     return {
       convs: convs, presence: presence,
+      ensureChannel: ensureChannel, sendCall: sendCall, postText: postText, callInfo: callInfo,
       bind: bind, start: start, stop: stop, open: openConv, onLeave: onLeave, renderList: renderList,
       loadConversations: loadConversations, resync: () => resync(false),
       onVisible: () => { if (openId && S.screen === 'dm') markReadSoon(200); resync(false); },
@@ -5611,6 +5754,347 @@ select.field option{color:#2c1521;background:#fff}
       nearBottom: () => nearBottom(), scrollBottom: scrollBottom
     };
   })();
+
+  /* =========================================================
+     PRIVATE-CHAT CALLS (1-to-1 voice & video)
+     WebRTC media goes device-to-device; ringing/offer/answer/ICE are signalled over the
+     conversation's PRIVATE Realtime channel ("dm:<conversation>"), which RLS restricts to
+     the two participants. Reuses the existing call screen, ringtone and controls.
+     ========================================================= */
+  const DEVICE_ID = uuid(); // tells apart this tab from my other signed-in devices
+  const DMCall = {
+    // Same ICE configuration the Secret Room uses (PeerJS defaults incl. its public relay), plus CUSTOM_ICE_SERVERS.
+    iceServers() {
+      const pj = window.peerjs, def = pj && pj.util && pj.util.defaultConfig && pj.util.defaultConfig.iceServers;
+      const base = Array.isArray(def) && def.length ? def : [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }];
+      return base.concat(CONFIG.CUSTOM_ICE_SERVERS || []);
+    },
+    signal(c, payload) {
+      DM.sendCall(c.conv, Object.assign({ id: c.id, from: myId(), dev: DEVICE_ID }, payload));
+    },
+    newCall(info, extra) {
+      return Object.assign({ kind: 'dm', conv: info.conv, peerId: info.peerId, peerName: info.peerName, peerAvatar: info.peerAvatar,
+        state: 'starting', pc: null, local: null, remote: null, startedAt: 0, muted: false, camOff: false, facing: 'user',
+        ringAck: false, pendingIce: [], iceOut: [], iceT: null, ringT: null }, extra);
+    },
+    async start(video) {
+      if (S.call) { callRoot.classList.remove('hidden'); return; }
+      const info = DM.callInfo(); if (!info) return;
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.isSecureContext || !window.RTCPeerConnection) {
+        toast('Calling needs the app to be opened over https (or localhost).', { icon: 'alert', duration: 5000 }); return;
+      }
+      if (!navigator.onLine) { toast('You’re offline.', { icon: 'wifi' }); return; }
+      const c = S.call = this.newCall(info, { id: uuid(), dir: 'out', video: video, remoteVideo: video });
+      closeEmoji(); DM.closeEmoji(); closeMsgMenu();
+      showCallUI();
+      let stream;
+      try { stream = await getMedia(video); }
+      catch (e) { if (S.call === c) endCall('cancel', true); toast(mediaErrorMsg(e), { icon: 'alert', duration: 5000 }); return; }
+      if (S.call !== c) { stopStream(stream); return; }
+      c.local = stream; c.video = hasLiveVideo(stream); c.state = 'ringing';
+      const ring = () => { if (S.call === c && c.state === 'ringing') this.signal(c, { t: 'ring', video: c.video, name: Account.name() }); };
+      ring();
+      c.ringT = setInterval(ring, 3000); // repeat until answered — covers a channel that is still connecting
+      Tone.start('ringback');
+      setTimer('callRing', () => { if (S.call === c && !c.startedAt) { this.signal(c, { t: 'end', reason: 'no-answer' }); endCall('no-answer'); } }, CONFIG.CALL_RING_TIMEOUT);
+      renderCall();
+    },
+    onSignal(conv, p) {
+      if (!p || typeof p !== 'object' || typeof p.id !== 'string' || p.id.length > 64 || typeof p.t !== 'string' || !Auth.ready) return;
+      if (p.dev === DEVICE_ID) return;
+      const c = S.call;
+      const mine = c && c.kind === 'dm' && c.id === p.id && c.conv === conv;
+      if (p.from === myId()) {
+        // My other device answered or declined this call: stop ringing here.
+        if (mine && c.dir === 'in' && c.state === 'incoming' && (p.t === 'accept' || p.t === 'decline')) {
+          endCall('elsewhere', true);
+          toast(p.t === 'accept' ? 'Answered on another device' : 'Declined on another device', { icon: 'phone' });
+        }
+        return;
+      }
+      const info = DM.callInfo(conv);
+      if (!info || p.from !== info.peerId) return; // only the other participant may signal
+      switch (p.t) {
+        case 'ring': {
+          if (mine) return; // repeated ring
+          if (c) { DM.sendCall(conv, { id: p.id, from: myId(), dev: DEVICE_ID, t: 'decline', reason: 'busy' }); return; }
+          const nc = S.call = this.newCall(info, { id: p.id, dir: 'in', video: p.video === true, remoteVideo: p.video === true, state: 'incoming' });
+          closeEmoji(); DM.closeEmoji(); closeMsgMenu(); closeViewer();
+          showCallUI();
+          this.signal(nc, { t: 'ringing' });
+          Tone.start('ring');
+          flashTitle('📞 Incoming call…');
+          if (!myFocused()) showNotify(nc.peerName, 'Incoming ' + (nc.video ? 'video' : 'voice') + ' call…', { tag: 'fc-call', kind: 'call', sticky: true, icon: nc.peerAvatar, vibrate: [400, 200, 400, 200, 400] });
+          setTimer('callRing', () => { if (S.call === nc && nc.state === 'incoming') endCall('missed'); }, CONFIG.CALL_RING_TIMEOUT + 3000);
+          return;
+        }
+        case 'ringing': if (mine && c.dir === 'out' && !c.ringAck) { c.ringAck = true; renderCallStatus(); } return;
+        case 'accept':
+          if (!mine || c.dir !== 'out' || c.pc) return;
+          clearInterval(c.ringT); c.ringT = null;
+          c.state = 'connecting'; c.remoteVideo = p.video === true;
+          Tone.stop(); clearTimer('callRing');
+          setTimer('callRing', () => { if (S.call === c && !c.startedAt) { this.signal(c, { t: 'end' }); endCall('failed'); } }, 30000);
+          renderCall();
+          this.connect(c, true);
+          return;
+        case 'offer': if (mine && c.dir === 'in' && c.pc && p.sdp) this.onOffer(c, p.sdp); return;
+        case 'answer': if (mine && c.dir === 'out' && c.pc && p.sdp) this.onAnswer(c, p.sdp); return;
+        case 'ice': if (mine && Array.isArray(p.c)) p.c.slice(0, 50).forEach((cand) => this.addIce(c, cand)); return;
+        case 'decline': if (mine && c.dir === 'out' && !c.startedAt) endCall(p.reason === 'busy' ? 'busy' : 'declined'); return;
+        case 'end':
+          if (!mine) return;
+          if (c.startedAt) endCall('remote-ended');
+          else endCall(c.dir === 'out' ? (p.reason === 'busy' ? 'busy' : 'failed') : 'missed');
+          return;
+        case 'state': if (mine && typeof p.video === 'boolean') { c.remoteVideo = p.video; renderCall(); } return;
+      }
+    },
+    async accept(withVideo) {
+      const c = S.call;
+      if (!c || c.kind !== 'dm' || c.state !== 'incoming') return;
+      c.state = 'connecting';
+      Tone.stop(); stopTitleFlash(); clearTimer('callRing'); closeNotifs('fc-call');
+      renderCall();
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.RTCPeerConnection) { toast('Calling needs the app to be opened over https.', { icon: 'alert' }); declineCall(); return; }
+      let stream;
+      try { stream = await getMedia(c.video && withVideo); }
+      catch (e) { toast(mediaErrorMsg(e), { icon: 'alert', duration: 5000 }); if (S.call === c) declineCall(); return; }
+      if (S.call !== c) { stopStream(stream); return; }
+      c.local = stream;
+      this.connect(c, false);
+      this.signal(c, { t: 'accept', video: hasLiveVideo(stream) });
+      setTimer('callRing', () => { if (S.call === c && !c.startedAt) { this.signal(c, { t: 'end' }); endCall('failed'); } }, 30000);
+      renderCall();
+    },
+    async connect(c, offerer) {
+      let pc;
+      try { pc = new RTCPeerConnection({ iceServers: this.iceServers() }); } catch (e) { endCall('failed'); return; }
+      c.pc = pc;
+      c.local.getTracks().forEach((t) => pc.addTrack(t, c.local));
+      pc.onicecandidate = (e) => {
+        if (S.call !== c || !e.candidate) return;
+        c.iceOut.push(e.candidate.toJSON ? e.candidate.toJSON() : e.candidate);
+        if (!c.iceT) c.iceT = setTimeout(() => { c.iceT = null; const batch = c.iceOut.splice(0); if (batch.length && S.call === c) this.signal(c, { t: 'ice', c: batch }); }, 250);
+      };
+      pc.ontrack = (e) => {
+        if (S.call !== c) return;
+        c.remote = (e.streams && e.streams[0]) || c.remote || new MediaStream();
+        if (!e.streams || !e.streams[0]) c.remote.addTrack(e.track);
+        if (callRemote.srcObject !== c.remote) callRemote.srcObject = c.remote;
+        const pl = callRemote.play(); if (pl && pl.catch) pl.catch(() => {});
+        renderCall();
+      };
+      const onState = () => {
+        if (S.call !== c) return;
+        const st = pc.iceConnectionState;
+        if ((st === 'connected' || st === 'completed') && !c.startedAt) {
+          c.startedAt = Date.now(); c.state = 'active';
+          clearTimer('callRing'); clearTimer('dmCallDrop'); Tone.stop(); stopTitleFlash();
+          clearInterval(callTick); callTick = setInterval(renderCallStatus, 1000);
+          renderCall();
+        } else if (st === 'connected' || st === 'completed') clearTimer('dmCallDrop');
+        else if (st === 'failed') endCall(c.startedAt ? 'remote-ended' : 'failed');
+        else if (st === 'disconnected') setTimer('dmCallDrop', () => { if (S.call === c && pc.iceConnectionState !== 'connected' && pc.iceConnectionState !== 'completed') { this.signal(c, { t: 'end' }); endCall('remote-ended'); } }, 10000);
+      };
+      pc.oniceconnectionstatechange = onState;
+      if (!offerer) return;
+      try {
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        if (S.call === c) this.signal(c, { t: 'offer', sdp: { type: pc.localDescription.type, sdp: pc.localDescription.sdp } });
+      } catch (e) { if (S.call === c) { this.signal(c, { t: 'end' }); endCall('failed'); } }
+    },
+    async onOffer(c, sdp) {
+      try {
+        await c.pc.setRemoteDescription(sdp);
+        this.flushIce(c);
+        const ans = await c.pc.createAnswer();
+        await c.pc.setLocalDescription(ans);
+        if (S.call === c) this.signal(c, { t: 'answer', sdp: { type: c.pc.localDescription.type, sdp: c.pc.localDescription.sdp } });
+      } catch (e) { if (S.call === c) { this.signal(c, { t: 'end' }); endCall('failed'); } }
+    },
+    async onAnswer(c, sdp) {
+      if (c.pc.signalingState !== 'have-local-offer') return;
+      try { await c.pc.setRemoteDescription(sdp); this.flushIce(c); }
+      catch (e) { if (S.call === c) { this.signal(c, { t: 'end' }); endCall('failed'); } }
+    },
+    addIce(c, cand) {
+      if (!cand || typeof cand !== 'object') return;
+      if (c.pc && c.pc.remoteDescription && c.pc.remoteDescription.type) c.pc.addIceCandidate(cand).catch(() => {});
+      else if (c.pendingIce.length < 100) c.pendingIce.push(cand);
+    },
+    flushIce(c) { const q = c.pendingIce.splice(0); q.forEach((cand) => c.pc.addIceCandidate(cand).catch(() => {})); },
+    cleanup(c) {
+      clearInterval(c.ringT); c.ringT = null; clearTimeout(c.iceT); clearTimer('dmCallDrop');
+      if (c.pc) { try { c.pc.close(); } catch (e) {} }
+    },
+    // The caller writes one history line into the chat so both sides see it (like WhatsApp).
+    logCall(c, reason) {
+      if (c.dir !== 'out' || reason === 'elsewhere') return;
+      const kind = c.video ? 'video call' : 'voice call';
+      const text = c.startedAt
+        ? '📞 ' + (c.video ? 'Video call' : 'Voice call') + ' · ' + fmtDur(Date.now() - c.startedAt)
+        : (reason === 'failed' ? '📞 ' + (c.video ? 'Video call' : 'Voice call') + ' couldn’t connect' : '📞 Missed ' + kind);
+      DM.postText(c.conv, text);
+    }
+  };
+
+  /* =========================================================
+     PROFILE PHOTO CROPPER — the user chooses the square/round area
+     (drag to move, pinch / mouse wheel / slider to zoom). Resolves a 512×512 JPEG, or null if cancelled.
+     ========================================================= */
+  const Cropper = (function () {
+    const rootEl = $('#crop-root'), stage = $('#crop-stage'), img = $('#crop-img'), zoomEl = $('#crop-zoom');
+    const OUT = 512, MAXZ = 4;
+    let st = null; // { w, h, D, base, z, x, y, url, resolve }
+    const scale = () => st.base * st.z;
+    function clamp() {
+      const s = scale(), W = st.w * s, H = st.h * s;
+      st.x = Math.min(0, Math.max(st.D - W, st.x));
+      st.y = Math.min(0, Math.max(st.D - H, st.y));
+    }
+    function paint() { clamp(); img.style.transform = 'translate(' + st.x + 'px,' + st.y + 'px) scale(' + scale() + ')'; zoomEl.value = String(st.z); }
+    // Zoom keeping the point (cx, cy) of the stage fixed under the finger / cursor.
+    function zoomTo(z, cx, cy) {
+      if (!st) return;
+      z = Math.max(1, Math.min(MAXZ, z));
+      if (cx == null) { cx = st.D / 2; cy = st.D / 2; }
+      const s0 = scale(), ix = (cx - st.x) / s0, iy = (cy - st.y) / s0;
+      st.z = z;
+      const s1 = scale();
+      st.x = cx - ix * s1; st.y = cy - iy * s1;
+      paint();
+    }
+    function layout() {
+      if (!st) return;
+      const D = stage.clientWidth || 300, ratio = D / st.D;
+      st.x *= ratio; st.y *= ratio; st.D = D;
+      st.base = Math.max(D / st.w, D / st.h);
+      paint();
+    }
+    const pts = new Map();
+    let last = null;
+    function local(e) { const r = stage.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+    function gesture() {
+      const p = Array.from(pts.values());
+      if (p.length === 1) return { x: p[0].x, y: p[0].y, d: 0 };
+      return { x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2, d: Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y) };
+    }
+    stage.addEventListener('pointerdown', (e) => {
+      if (!st) return;
+      stage.setPointerCapture(e.pointerId);
+      pts.set(e.pointerId, local(e)); last = gesture();
+    });
+    stage.addEventListener('pointermove', (e) => {
+      if (!st || !pts.has(e.pointerId)) return;
+      pts.set(e.pointerId, local(e));
+      const g = gesture();
+      if (last) {
+        if (g.d && last.d) zoomTo(st.z * (g.d / last.d), g.x, g.y);
+        st.x += g.x - last.x; st.y += g.y - last.y;
+        paint();
+      }
+      last = g;
+    });
+    const up = (e) => { pts.delete(e.pointerId); last = pts.size ? gesture() : null; };
+    stage.addEventListener('pointerup', up);
+    stage.addEventListener('pointercancel', up);
+    stage.addEventListener('wheel', (e) => { if (!st) return; e.preventDefault(); const p = local(e); zoomTo(st.z * Math.exp(-e.deltaY * 0.0015), p.x, p.y); }, { passive: false });
+    zoomEl.addEventListener('input', () => zoomTo(parseFloat(zoomEl.value)));
+    window.addEventListener('resize', layout);
+
+    function close(result) {
+      if (!st) return;
+      const s = st; st = null; pts.clear(); last = null;
+      rootEl.classList.add('hidden');
+      img.removeAttribute('src');
+      URL.revokeObjectURL(s.url);
+      s.resolve(result);
+    }
+    function done() {
+      if (!st) return;
+      const s = scale(), side = st.D / s;
+      const cv = document.createElement('canvas'); cv.width = OUT; cv.height = OUT;
+      const ctx = cv.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, OUT, OUT);
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, -st.x / s, -st.y / s, side, side, 0, 0, OUT, OUT);
+      cv.toBlob((b) => close(b || null), 'image/jpeg', 0.88);
+    }
+    $('#crop-cancel').addEventListener('click', () => close(null));
+    $('#crop-done').addEventListener('click', done);
+
+    async function open(file) {
+      if (st) close(null);
+      const r = await loadImage(file); // throws if the browser can't decode it
+      return new Promise((resolve) => {
+        img.src = r.url;
+        rootEl.classList.remove('hidden');
+        const D = stage.clientWidth || 300;
+        const w = r.img.naturalWidth, h = r.img.naturalHeight, base = Math.max(D / w, D / h);
+        st = { w: w, h: h, D: D, base: base, z: 1, x: (D - w * base) / 2, y: (D - h * base) / 2, url: r.url, resolve: resolve };
+        paint();
+        setTimeout(() => { try { $('#crop-done').focus(); } catch (e) {} }, 60);
+      });
+    }
+    return { open: open, cancel: () => close(null), isOpen: () => !!st };
+  })();
+
+  /* =========================================================
+     BACK BUTTON (Android / browser back) — steps back one level instead of leaving the app.
+     One history entry is kept while you're anywhere deeper than a home screen; pressing
+     back closes the top-most layer (photo, menu, dialog, sheet) or goes to the parent screen.
+     At the chat list (or sign-in), back leaves the app as usual.
+     ========================================================= */
+  const Nav = {
+    guarded: false, ignore: 0, queued: false,
+    roots: ['chats', 'auth', 'setup', 'boot'],
+    overlayOpen() {
+      return Cropper.isOpen() || viewer.classList.contains('open') || modalRoot.classList.contains('open') ||
+        !msgMenu.classList.contains('hidden') || !callRoot.classList.contains('hidden') ||
+        $$('.sheet-root').some((r) => r.classList.contains('open'));
+    },
+    atRoot() { return this.roots.indexOf(S.screen) !== -1 && !this.overlayOpen(); },
+    sync() {
+      if (this.queued) return;
+      this.queued = true;
+      Promise.resolve().then(() => {
+        this.queued = false;
+        if (!this.atRoot() && !this.guarded) { try { history.pushState({ fc: 1 }, ''); this.guarded = true; } catch (e) {} }
+        else if (this.atRoot() && this.guarded) { this.guarded = false; this.ignore++; try { history.back(); } catch (e) { this.ignore--; } }
+      });
+    },
+    // One step back. Returns true if something was handled.
+    step() {
+      if (!callRoot.classList.contains('hidden')) { toast('Use the red button to end the call.', { icon: 'phone' }); return true; }
+      if (Cropper.isOpen()) { Cropper.cancel(); return true; }
+      if (viewer.classList.contains('open')) { closeViewer(); return true; }
+      if (!msgMenu.classList.contains('hidden')) { closeMsgMenu(); return true; }
+      if (modalRoot.classList.contains('open')) { closeModal(); return true; }
+      if (sheetRoot.classList.contains('open')) { closeSheet(); return true; }
+      if ($('#profile-root').classList.contains('open')) { Account.closeSheet(); return true; }
+      if ($('#peer-root').classList.contains('open')) { DM.closePeer(); return true; }
+      if (!emojiPanel.classList.contains('hidden')) { closeEmoji(); return true; }
+      if (S.screen === 'dm' && DM.escape()) return true;
+      const backBtn = { dm: '#dm-back', search: '#search-back', welcome: '#welcome-back', waiting: '#wait-back', join: '#join-back', connecting: '#connecting-cancel', chat: '#chat-exit' }[S.screen];
+      if (backBtn) { $(backBtn).click(); return true; }
+      return false;
+    },
+    onPop() {
+      if (this.ignore > 0) { this.ignore--; return; }
+      this.guarded = false;
+      this.step();
+      this.sync();
+    },
+    init() {
+      window.addEventListener('popstate', () => this.onPop());
+      // Re-check whenever any layer opens or closes.
+      const mo = new MutationObserver(() => this.sync());
+      [viewer, modalRoot, msgMenu, callRoot, $('#crop-root')].concat($$('.sheet-root'))
+        .forEach((n) => mo.observe(n, { attributes: true, attributeFilter: ['class'] }));
+    }
+  };
 
   /* =========================================================
      USER SEARCH (by username prefix or exact mobile number)
@@ -5686,7 +6170,7 @@ select.field option{color:#2c1521;background:#fff}
      ========================================================= */
   const App = {
     async boot() {
-      renderAuthCountries(); renderAuth();
+      renderAuthCountries(); renderAuth(); renderDevBanner();
       if (!sbConfigured()) {
         $('#config-warn').classList.remove('hidden');
         setAuthDisabled(true);
@@ -5776,6 +6260,7 @@ select.field option{color:#2c1521;background:#fff}
     $('#pf-rooms').addEventListener('click', () => { Account.closeSheet(); showScreen(S.role ? (S.screen === 'chat' ? 'chat' : 'welcome') : 'welcome'); });
     $('#pf-logout').addEventListener('click', confirmLogout);
 
+    Nav.init();
     if (wideMQ.addEventListener) wideMQ.addEventListener('change', updateSplit);
     else if (wideMQ.addListener) wideMQ.addListener(updateSplit);
   }
