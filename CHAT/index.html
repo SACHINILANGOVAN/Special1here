@@ -308,9 +308,6 @@ html[data-theme="light"] .theme-toggle .i-sun{display:none}
 .ac-arrow{color:var(--text-3);flex:none}
 .ac-arrow svg{width:18px;height:18px}
 
-.trust{display:flex;flex-wrap:wrap;justify-content:center;gap:8px 16px;margin-top:26px;font-size:13px;color:var(--text-2)}
-.trust span{display:inline-flex;align-items:center;gap:6px}
-.trust svg{width:14px;height:14px;color:var(--accent)}
 .foot-note{margin-top:18px;font-size:12.5px;color:var(--text-3);line-height:1.5;max-width:360px}
 
 .home-banner{
@@ -1016,7 +1013,7 @@ select.field option{color:#2c1521;background:#fff}
           <span class="ac-arrow"><i data-icon="chev"></i></span>
         </button>
         <p class="error-text" id="auth-guest-error" role="alert"></p>
-        <p class="foot-note">Your account, chats and Secret Rooms are protected by Supabase Auth and row-level security. Only the people in a conversation can read it. Without an account, your rooms stay on this device until the room’s owner deletes them.</p>
+        <p class="foot-note">Your account, chats and Secret Rooms are private and protected.</p>
       </div>
     </div>
   </section>
@@ -1145,7 +1142,7 @@ select.field option{color:#2c1521;background:#fff}
         </div>
 
         <div class="guest-bar glass hidden" id="guest-bar">
-          <span class="gb-text"><b id="guest-name">Guest</b><small>No account · rooms are kept on this device</small></span>
+          <span class="gb-text"><b id="guest-name">Guest</b><small>Guest · no account</small></span>
           <button class="btn btn-glass btn-sm" id="guest-rename"><i data-icon="edit"></i>Name</button>
         </div>
 
@@ -1167,12 +1164,6 @@ select.field option{color:#2c1521;background:#fff}
           <div id="recent-rooms-list" role="list" aria-label="Recent rooms"></div>
         </div>
 
-        <div class="trust reveal" style="--d:.4s">
-          <span><i data-icon="lock"></i>Encrypted in transit</span>
-          <span><i data-icon="users"></i>Only two people</span>
-          <span><i data-icon="shield"></i>Private to your room</span>
-        </div>
-        <p class="foot-note reveal" style="--d:.46s">Your rooms, messages, photos and videos are saved privately until the room’s owner deletes the room. Tap a recent room to reopen it without the code. Deleting a room or changing its code erases its history.</p>
       </div>
     </div>
   </section>
@@ -1203,7 +1194,6 @@ select.field option{color:#2c1521;background:#fff}
           <button class="btn btn-glass btn-sm" id="wait-change"><i data-icon="refresh"></i>Change Code</button>
           <button class="btn btn-text" id="wait-close">Cancel Room</button>
         </div>
-        <p class="foot-note">Your room and code stay exactly the same until you change them. Keep this page open for live delivery, photos and calls; messages are also saved to your account.</p>
       </div>
     </div>
   </section>
@@ -1229,7 +1219,6 @@ select.field option{color:#2c1521;background:#fff}
           <p class="error-text" id="join-error" role="alert"></p>
           <button class="btn btn-primary btn-block" id="join-btn" type="submit" disabled><i data-icon="heart"></i>Connect</button>
         </form>
-        <p class="foot-note">Codes work while your special person’s room exists. If they’re offline, you’ll connect automatically when they’re back.</p>
       </div>
     </div>
   </section>
