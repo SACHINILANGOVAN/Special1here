@@ -1728,7 +1728,7 @@ select.field option{color:#2c1521;background:#fff}
   const codeTiles = $('#code-tiles');
   const copyBtn = $('#copy-code'), copyLabel = $('#copy-label'), shareBtn = $('#share-code');
   const waitStatus = $('#wait-status'), waitDot = $('#wait-dot'), waitTitle = $('#wait-title');
-  const codeInput = $('#code-input'), otp = $('#otp'), otpBoxes = $$('.otp-box'), joinBtn = $('#join-btn'), joinError = $('#join-error');
+  const codeInput = $('#code-input'), otp = $('#otp'), otpBoxes = $$('#otp .otp-box'), joinBtn = $('#join-btn'), joinError = $('#join-error');
   const connectingText = $('#connecting-text'), connectingCode = $('#connecting-code');
   const list = $('#messages'), input = $('#msg-input'), sendBtn = $('#send-btn');
   const hdrStatus = $('#hdr-status'), presence = $('#presence');
@@ -4475,6 +4475,14 @@ select.field option{color:#2c1521;background:#fff}
     window.addEventListener('blur', () => sendPresence(false));
     window.addEventListener('pageshow', () => sendPresence(false));
     setInterval(() => { if (S.role) { updateHeaderStatus(); updateHomeBanner(); } if (Auth.ready) DM.tick(); }, 15000);
+    // Out of the tab ≠ offline: while hidden (and online) keep the realtime socket alive and keep
+    // reporting deliveries, so the sender sees ✓✓. (Browsers may run this only ~once a minute.)
+    setInterval(() => {
+      if (!document.hidden || !Auth.ready || !sb || !navigator.onLine) return;
+      try { if (sb.realtime && typeof sb.realtime.isConnected === 'function' && !sb.realtime.isConnected()) sb.realtime.connect(); } catch (e) {}
+      if (!Auth.guest) DM.catchUp();
+      if (S.roomId) Room.catchUp();
+    }, 20000);
 
     document.addEventListener('visibilitychange', () => {
       sendPresence(false);
@@ -5318,6 +5326,21 @@ select.field option{color:#2c1521;background:#fff}
       saveSoon();
       this.flushUnsaved();
     },
+    // Tab hidden: pick up messages the realtime socket missed and mark them delivered (✓✓ for the sender).
+    async catchUp() {
+      if (!this.ok() || !S.roomId || this.catchBusy) return;
+      this.catchBusy = true;
+      try {
+        const rid = S.roomId, gen = S.generation;
+        const cols = 'id, sender_id, kind, body, mime, reply_to_id, created_at, edited_at, delivered_at';
+        const q = (c) => sb.from('secret_room_messages').select(c).eq('room_id', rid).is('delivered_at', null)
+          .neq('sender_id', myId()).order('created_at', { ascending: true }).limit(100);
+        let { data, error } = await q(cols + ', attachment_path');
+        if (error && /attachment_path/.test(errText(error))) ({ data, error } = await q(cols));
+        if (error || !data || gen !== S.generation || S.roomId !== rid) return;
+        data.filter((r) => r.kind === 'text' || r.attachment_path).forEach((r) => this.onInsert(r));
+      } finally { this.catchBusy = false; }
+    },
     onInsert(r) {
       if (!r) return;
       if (r.sender_id === myId()) { const m = S.messages.find((x) => x.id === r.id); if (m) m.db = true; return; }
@@ -5633,6 +5656,31 @@ select.field option{color:#2c1521;background:#fff}
         // (Supabase query builders are lazy — .then() is what actually sends the request.)
         ids.forEach((cid) => sb.rpc('mark_delivered', { p_conversation: cid }).then(({ error }) => { if (error && window.console) console.warn('[ForeverConnect] delivered', error); }));
       }, 500);
+    }
+    /* Background catch-up (tab hidden): report "delivered" for anything that arrived, even if
+       the live socket was suspended, and notify about messages the socket missed.
+       Ticks: 1 = saved on the server · 2 = reached the other person's device · blue = opened. */
+    let catchBusy = false;
+    async function catchUp() {
+      if (!Auth.ready || !sb || !loaded || catchBusy) return;
+      catchBusy = true;
+      try {
+        const { data: n, error } = await sb.rpc('mark_delivered', { p_conversation: null });
+        if (error || !n) return; // nothing new reached this device
+        const before = new Map();
+        convs.forEach((c, id) => before.set(id, c.last ? c.last.id : null));
+        if (!(await loadConversations())) return;
+        convs.forEach((c, id) => {
+          const l = c.last;
+          if (!l || l.sender === myId() || l.kind === 'system' || before.get(id) === l.id) return;
+          if (!myFocused()) {
+            S.hiddenUnread++;
+            if (!titleFlash) document.title = '(' + S.hiddenUnread + ') Forever Connect ❤️';
+            showNotify(convName(c), snip((c.isGroup && l.senderName ? l.senderName + ': ' : '') + l.body, 180), { tag: 'fc-dm-' + id, kind: 'dm', conv: id, icon: convAvatar(c) });
+          }
+        });
+        if (openId) mergeLatest();
+      } finally { catchBusy = false; }
     }
     function resync(now) {
       if (!Auth.ready) return;
@@ -6501,7 +6549,7 @@ select.field option{color:#2c1521;background:#fff}
       ensureChannel: ensureChannel, sendCall: sendCall, postText: postText, callInfo: callInfo,
       current: () => conv(), loadMembers: loadMembers, uploadGroupPhoto: uploadGroupPhoto,
       bind: bind, start: start, stop: stop, open: openConv, onLeave: onLeave, renderList: renderList,
-      loadConversations: loadConversations, resync: () => resync(false),
+      loadConversations: loadConversations, resync: () => resync(false), catchUp: catchUp,
       onVisible: () => { if (openId && S.screen === 'dm') markReadSoon(200); resync(false); },
       tick: () => { renderListSoon(); if (openId) renderHeader(); },
       saveOpen: saveOpen, savedOpen: savedOpen, closePeer: closePeer, closeEmoji: closeEmoji, escape: escape,
@@ -7070,7 +7118,10 @@ select.field option{color:#2c1521;background:#fff}
       catch (e) { bootError('Couldn’t load the secure sign-in library. Check your internet connection and try again.'); return; }
       try {
         sb = window.supabase.createClient(SUPABASE_CONFIG.URL, SUPABASE_CONFIG.ANON_KEY, {
-          auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storageKey: 'fc-auth' }
+          auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storageKey: 'fc-auth' },
+          // Heartbeat in a Web Worker: browsers throttle timers in background tabs, which made the
+          // realtime socket drop after a few minutes out of the tab (→ messages stuck on one tick).
+          realtime: { worker: true, heartbeatIntervalMs: 20000 }
         });
       } catch (e) { bootError('Supabase couldn’t start: ' + errText(e)); return; }
       sb.auth.onAuthStateChange((event, session) => {
