@@ -698,6 +698,29 @@ html[data-theme="light"] .theirs .quote{background:rgba(0,0,0,.05)}
 .call-local{position:absolute;z-index:3;right:calc(var(--sar) + 14px);top:calc(var(--sat) + 14px);width:108px;height:156px;border-radius:18px;object-fit:cover;background:#222;box-shadow:0 10px 30px rgba(0,0,0,.5);transform:scaleX(-1)}
 .call-local.env{transform:none}
 .call-controls{position:relative;z-index:2;display:flex;gap:20px;justify-content:center;padding:20px 20px calc(var(--sab) + 44px);flex-wrap:wrap}
+/* Group calls: one tile per other participant */
+.call-grid{position:absolute;inset:0;z-index:1;display:none;gap:8px;padding:calc(var(--sat) + 92px) calc(var(--sar) + 10px) calc(var(--sab) + 156px) calc(var(--sal, 0px) + 10px);grid-template-columns:1fr;grid-auto-rows:minmax(0,1fr)}
+.call-root.grid-on .call-grid{display:grid}
+.call-root.grid-on .call-av{display:none}
+.call-root.grid-on .call-top{padding-top:calc(var(--sat) + 22px)}
+.call-root.grid-on .call-local{top:auto;bottom:calc(var(--sab) + 162px);width:92px;height:132px}
+.call-grid[data-n="3"],.call-grid[data-n="4"],.call-grid[data-n="5"],.call-grid[data-n="6"],.call-grid[data-n="7"]{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media (min-aspect-ratio:1/1){
+  .call-grid[data-n="2"]{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .call-grid[data-n="5"],.call-grid[data-n="6"],.call-grid[data-n="7"]{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+.call-tile{position:relative;border-radius:18px;overflow:hidden;background:rgba(255,255,255,.08);display:grid;place-items:center;min-height:0;transition:opacity .3s}
+.call-tile video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .3s;background:#000}
+.call-tile.vid video{opacity:1}
+.call-tile .tile-av{width:76px;height:76px;border-radius:50%;background:var(--accent-grad);display:grid;place-items:center;position:relative;overflow:hidden}
+.call-tile .tile-av .ini{font-size:30px;font-weight:700}
+.call-tile .tile-av img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.call-tile.vid .tile-av{display:none}
+.call-tile .tile-name{position:absolute;left:12px;bottom:9px;font-size:13.5px;font-weight:600;text-shadow:0 1px 6px rgba(0,0,0,.75);max-width:calc(100% - 24px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.call-tile.wait{opacity:.6}
+.call-tile.wait .tile-name::after{content:' · connecting…';font-weight:400}
+.join-pill{height:32px;padding:0 14px;border-radius:16px;background:#22b566;color:#fff;font-weight:700;font-size:14px;display:inline-flex;align-items:center;gap:6px;margin-right:4px;animation:revealIn .3s var(--ease) both}
+.join-pill i svg{width:16px;height:16px}
 .cbtn{display:flex;flex-direction:column;align-items:center;gap:8px;font-size:12.5px;color:rgba(255,255,255,.88);min-width:64px}
 .cbtn .c{width:64px;height:64px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.16);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);transition:transform .2s var(--spring), background .2s}
 .cbtn:active .c{transform:scale(.9)}
@@ -1302,6 +1325,7 @@ select.field option{color:#2c1521;background:#fff}
           <span class="peer-status" id="dm-status" role="status"></span>
         </button>
         <div class="hdr-actions">
+          <button class="join-pill hidden" id="dm-join" aria-label="Join the group call" title="Join the group call"><i data-icon="phone"></i>Join</button>
           <button class="icon-btn" id="dm-voice" aria-label="Voice call" title="Voice call"><i data-icon="phone"></i></button>
           <button class="icon-btn" id="dm-video" aria-label="Video call" title="Video call"><i data-icon="video"></i></button>
           <button class="icon-btn" id="dm-more" aria-label="Conversation options" title="Options"><i data-icon="more"></i></button>
@@ -1497,6 +1521,7 @@ select.field option{color:#2c1521;background:#fff}
 <!-- ===================== CALL ===================== -->
 <div class="call-root hidden" id="call-root" role="dialog" aria-label="Call">
   <video class="call-remote" id="call-remote" autoplay playsinline></video>
+  <div class="call-grid" id="call-grid" aria-label="Participants"></div>
   <div class="call-top">
     <div class="call-av" id="call-av"><i data-icon="heartFill"></i><img id="call-av-img" class="hidden" alt=""></div>
     <div class="call-name" id="call-name"></div>
@@ -1567,6 +1592,7 @@ select.field option{color:#2c1521;background:#fff}
     CHUNK: 11000,                // raw bytes per chunk (base64 packet stays under PeerJS's 16 KB JSON limit)
     MAX_PACKET: 16000,
     CALL_RING_TIMEOUT: 45000,
+    GROUP_CALL_MAX: 8,          // people in one group call (full-mesh WebRTC: each device sends to every other)
     MAX_NAME: 40
   };
   const PROTO = 'fc-3';
@@ -3967,6 +3993,7 @@ select.field option{color:#2c1521;background:#fff}
     const c = S.call;
     if (!c || c.state !== 'incoming') return;
     if (c.kind === 'dm') { DMCall.accept(withVideo); return; }
+    if (c.kind === 'group') { GroupCall.accept(withVideo); return; }
     c.state = 'connecting';
     Tone.stop(); stopTitleFlash(); clearTimer('callRing'); closeNotifs('fc-call');
     renderCall();
@@ -3984,7 +4011,9 @@ select.field option{color:#2c1521;background:#fff}
 
   // Signal the other side through the right transport (Secret Room data channel or private-chat Realtime).
   function callSignal(c, roomPacket, dmPayload) {
-    if (c.kind === 'dm') DMCall.signal(c, dmPayload); else send(roomPacket);
+    if (c.kind === 'dm') DMCall.signal(c, dmPayload);
+    else if (c.kind === 'group') GroupCall.signal(c, dmPayload.t === 'end' ? { t: 'leave', last: GroupCall.isLast(c) } : dmPayload);
+    else send(roomPacket);
   }
   function declineCall() {
     const c = S.call; if (!c) return;
@@ -4031,11 +4060,13 @@ select.field option{color:#2c1521;background:#fff}
     Tone.stop(); stopTitleFlash();
     try { if (c.mc) c.mc.close(); } catch (e) {}
     if (c.kind === 'dm') DMCall.cleanup(c);
+    if (c.kind === 'group') GroupCall.cleanup(c);
     stopStream(c.local);
     callRemote.srcObject = null; callLocal.srcObject = null;
     callRoot.classList.add('hidden');
     closeNotifs('fc-call');
     if (silent) return;
+    if (c.kind === 'group') { GroupCall.after(c, reason); return; }
     const dm = c.kind === 'dm', who = dm ? c.peerName : peerName();
     const kind = c.video ? 'Video call' : 'Voice call';
     let text = null;
@@ -4087,11 +4118,13 @@ select.field option{color:#2c1521;background:#fff}
     if (s.getVideoTracks().length && nt.getSettings && nt.getSettings().facingMode) c.facing = nt.getSettings().facingMode === 'environment' ? 'environment' : 'user';
     else if (s) c.facing = facing;
     nt.enabled = !c.camOff;
-    try {
-      const pc = c.pc || (c.mc && c.mc.peerConnection);
-      const sender = pc && pc.getSenders().find((x) => x.track === old || (x.track && x.track.kind === 'video'));
-      if (sender) await sender.replaceTrack(nt);
-    } catch (e) {}
+    const pcs = c.kind === 'group' ? Array.from(c.peers.values()).map((p) => p.pc) : [c.pc || (c.mc && c.mc.peerConnection)];
+    for (const pc of pcs) {
+      try {
+        const sender = pc && pc.getSenders().find((x) => x.track === old || (x.track && x.track.kind === 'video'));
+        if (sender) await sender.replaceTrack(nt);
+      } catch (e) {}
+    }
     c.local.removeTrack(old); c.local.addTrack(nt);
     callLocal.srcObject = c.local;
     renderCall();
@@ -4106,6 +4139,12 @@ select.field option{color:#2c1521;background:#fff}
     else if (c.state === 'ringing') t = c.ringAck ? 'Ringing…' : 'Calling…';
     else if (c.state === 'connecting') t = 'Connecting…';
     else t = fmtDur(Date.now() - c.startedAt) + (c.muted ? ' · muted' : '');
+    if (c.kind === 'group') {
+      if (c.state === 'incoming') t = (c.inviterName ? c.inviterName + ' · ' : '') + (c.video ? 'Group video call…' : 'Group voice call…');
+      else if (c.state === 'ringing') t = 'Ringing the group…';
+      else if (c.state === 'connecting') t = 'Joining…';
+      else if (c.state === 'active') t = fmtDur(Date.now() - c.startedAt) + ' · ' + (c.peers.size + 1) + ' in call' + (c.muted ? ' · muted' : '');
+    }
     callStatus.textContent = t;
   }
   function cbtn(ic, label, cls, fn) {
@@ -4118,14 +4157,18 @@ select.field option{color:#2c1521;background:#fff}
   }
   function renderCall() {
     const c = S.call; if (!c) return;
-    const remoteVid = !!(c.startedAt && hasLiveVideo(c.remote) && c.remoteVideo);
+    const group = c.kind === 'group';
+    callRoot.classList.toggle('group-call', group);
+    if (!group) callRoot.classList.remove('grid-on');
+    const remoteVid = !group && !!(c.startedAt && hasLiveVideo(c.remote) && c.remoteVideo);
     const localVid = hasLiveVideo(c.local) && !c.camOff;
     callRoot.classList.toggle('ringing', c.state === 'incoming' || c.state === 'ringing' || c.state === 'starting');
     callRoot.classList.toggle('video-on', remoteVid);
     callLocal.classList.toggle('hidden', !localVid);
     callLocal.classList.toggle('env', c.facing === 'environment');
     if (localVid && callLocal.srcObject !== c.local) callLocal.srcObject = c.local;
-    if (c.kind === 'dm') {
+    if (group) GroupCall.render(c);
+    else if (c.kind === 'dm') {
       // Private-chat call: show the contact's account name & photo.
       $('#call-name').textContent = c.peerName;
       const cai = $('#call-av-img');
@@ -4501,6 +4544,7 @@ select.field option{color:#2c1521;background:#fff}
     window.addEventListener('pagehide', (e) => {
       if (Auth.ready && !e.persisted) Presence.beacon(false);
       DM.saveOpen();
+      if (!e.persisted && S.call && S.call.kind === 'group' && S.call.local) GroupCall.signal(S.call, { t: 'leave', last: GroupCall.isLast(S.call) });
       if (!S.role) return;
       // Save the session so a refresh resumes the same room, and tell the partner we'll be right back
       // (NOT "session ended") so they keep the room open and reconnect automatically.
@@ -5802,8 +5846,7 @@ select.field option{color:#2c1521;background:#fff}
         input.value = drafts.get(id) || '';
       }
       const c0 = convs.get(id);
-      $('#dm-voice').classList.toggle('hidden', !!c0.isGroup); // calls are one-to-one
-      $('#dm-video').classList.toggle('hidden', !!c0.isGroup);
+      GroupCall.refreshJoin();
       renderHeader(); renderComposeCtx(); autoGrow(); updateSendBtn();
       showScreen('dm');
       saveOpen();
@@ -6250,6 +6293,23 @@ select.field option{color:#2c1521;background:#fff}
       const c = convs.get(id || openId); if (!c || c.isGroup) return null; // calls are one-to-one
       return { conv: c.id, peerId: c.peer.id, peerName: nameOf(c.peer), peerAvatar: avatarUrl(c.peer.avatar_path) };
     }
+    function groupCallInfo(id) {
+      const c = convs.get(id || openId); if (!c || !c.isGroup) return null;
+      return { conv: c.id, title: c.title, avatar: avatarUrl(c.groupAvatar) };
+    }
+    // Is uid a current member of group `id`? Reloads the member list (at most every 15 s) for someone not yet known.
+    async function isGroupMember(id, uid) {
+      const c = convs.get(id); if (!c || !c.isGroup || typeof uid !== 'string') return false;
+      if (c.members && c.members.has(uid)) return true;
+      if (c.membersCheckedAt && Date.now() - c.membersCheckedAt < 15000) return false;
+      c.membersCheckedAt = Date.now();
+      await loadMembers(c);
+      return !!(c.members && c.members.has(uid));
+    }
+    function memberCard(id, uid) {
+      const c = convs.get(id), mm = c && c.members && c.members.get(uid);
+      return { name: mm ? nameOf(mm) : 'Someone', avatar: mm ? avatarUrl(mm.avatar_path) : null };
+    }
     function retry(m) { m.status = 'pending'; refreshMine(m); insert(m); }
     function retryOutbox() { outbox.filter((m) => m.status === 'failed' && m.autoRetry).forEach(retry); }
     function discard(m) {
@@ -6291,15 +6351,16 @@ select.field option{color:#2c1521;background:#fff}
           if (p.on) showTyping(); else hideTyping();
         });
         ch.on('broadcast', { event: 'call' }, (msg) => { DMCall.onSignal(id, (msg && msg.payload) || null); });
+        ch.on('broadcast', { event: 'gcall' }, (msg) => { GroupCall.onSignal(id, (msg && msg.payload) || null); });
         ch.subscribe((status) => { if (status === 'CHANNEL_ERROR' && window.console) console.warn('[ForeverConnect] conversation channel unavailable — check the Realtime Authorization policies in schema.sql'); });
         typingChans.set(id, ch);
       }
       return ch;
     }
     function subscribeTyping() { typingCh = ensureChannel(openId); }
-    function sendCall(id, payload) {
+    function sendCall(id, payload, event) {
       const ch = ensureChannel(id); if (!ch) return;
-      try { const r = ch.send({ type: 'broadcast', event: 'call', payload: payload }); if (r && r.catch) r.catch(() => {}); } catch (e) {}
+      try { const r = ch.send({ type: 'broadcast', event: event || 'call', payload: payload }); if (r && r.catch) r.catch(() => {}); } catch (e) {}
     }
     function unsubscribeTyping() { typingCh = null; hideTyping(); }
     function removeTypingChannels() { typingChans.forEach((ch) => { try { sb.removeChannel(ch); } catch (e) {} }); typingChans.clear(); typingCh = null; }
@@ -6502,8 +6563,10 @@ select.field option{color:#2c1521;background:#fff}
     /* ---------- Events ---------- */
     function bind() {
       $('#dm-back').addEventListener('click', () => showScreen('chats'));
-      $('#dm-voice').addEventListener('click', () => DMCall.start(false));
-      $('#dm-video').addEventListener('click', () => DMCall.start(true));
+      const startCallHere = (video) => { const c = conv(); if (c && c.isGroup) GroupCall.start(video); else DMCall.start(video); };
+      $('#dm-voice').addEventListener('click', () => startCallHere(false));
+      $('#dm-video').addEventListener('click', () => startCallHere(true));
+      $('#dm-join').addEventListener('click', () => GroupCall.joinOpen());
       $('#dm-avatar').addEventListener('click', openPeer);
       $('#dm-info').addEventListener('click', openPeer);
       $('#dm-more').addEventListener('click', (e) => {
@@ -6547,6 +6610,7 @@ select.field option{color:#2c1521;background:#fff}
     return {
       convs: convs, presence: presence,
       ensureChannel: ensureChannel, sendCall: sendCall, postText: postText, callInfo: callInfo,
+      groupCallInfo: groupCallInfo, isGroupMember: isGroupMember, memberCard: memberCard,
       current: () => conv(), loadMembers: loadMembers, uploadGroupPhoto: uploadGroupPhoto,
       bind: bind, start: start, stop: stop, open: openConv, onLeave: onLeave, renderList: renderList,
       loadConversations: loadConversations, resync: () => resync(false), catchUp: catchUp,
@@ -6739,6 +6803,350 @@ select.field option{color:#2c1521;background:#fff}
         ? '📞 ' + (c.video ? 'Video call' : 'Voice call') + ' · ' + fmtDur(Date.now() - c.startedAt)
         : (reason === 'failed' ? '📞 ' + (c.video ? 'Video call' : 'Voice call') + ' couldn’t connect' : '📞 Missed ' + kind);
       DM.postText(c.conv, text);
+    }
+  };
+
+  /* =========================================================
+     GROUP CALLS (voice & video, up to CONFIG.GROUP_CALL_MAX people)
+     Full mesh: every participant keeps one RTCPeerConnection to each other participant, so media
+     still goes device-to-device. Signalling rides the group's PRIVATE Realtime channel
+     ("dm:<conversation>", event "gcall"), which RLS restricts to the group's members.
+     Packets: ring (invite, repeated while ringing) · join · knock · alive (heartbeat every 8 s) ·
+     offer / answer / ice (directed with to + toDev) · state (camera on/off) · decline · leave.
+     For each pair of participants the one with the smaller user id makes the offer; the other
+     "knocks" to ask for it. Heartbeats also repair any connection a lost packet left out.
+     ========================================================= */
+  const GroupCall = {
+    live: new Map(),   // conv → { id, video, n, at }: calls seen running in a group (powers "Join")
+    done: new Set(),   // call ids I declined / left / missed — repeated rings must not ring again
+    queue: Promise.resolve(),
+    liveT: null,
+    LIVE_MS: 20000,
+    signal(c, payload) {
+      DM.sendCall(c.conv, Object.assign({ id: c.id, from: myId(), dev: DEVICE_ID }, payload), 'gcall');
+    },
+    to(c, peer, payload) { this.signal(c, Object.assign({ to: peer.uid, toDev: peer.dev }, payload)); },
+    myVideo(c) { return hasLiveVideo(c.local) && !c.camOff; },
+    inCall(c) { return !!(c && c.local && c.state !== 'incoming'); },
+    // True when nobody else is left in this call after I go (lets others hide "Join" at once).
+    isLast(c) { return c.peers.size === 0 && (c.dir === 'out' || c.everConnected); },
+    newCall(info, extra) {
+      return Object.assign({ kind: 'group', conv: info.conv, title: info.title, avatar: info.avatar,
+        state: 'starting', local: null, peers: new Map(), roster: new Map(), knocks: new Map(),
+        startedAt: 0, everConnected: false, muted: false, camOff: false, facing: 'user',
+        ringT: null, aliveT: null, created: Date.now() }, extra);
+    },
+    canCall() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.isSecureContext || !window.RTCPeerConnection) {
+        toast('Calling needs the app to be opened over https (or localhost).', { icon: 'alert', duration: 5000 }); return false;
+      }
+      if (!navigator.onLine) { toast('You’re offline.', { icon: 'wifi' }); return false; }
+      return true;
+    },
+
+    /* ---------- "A call is going on in this group" ---------- */
+    liveCall(conv) {
+      const l = this.live.get(conv);
+      if (l && Date.now() - l.at > this.LIVE_MS) { this.live.delete(conv); return null; }
+      return l || null;
+    },
+    seen(conv, p) {
+      const l = this.live.get(conv);
+      const n = typeof p.n === 'number' && p.n > 0 && p.n < 100 ? p.n : (l && l.id === p.id ? l.n : 1);
+      this.live.set(conv, { id: p.id, video: p.video === true, n: n, at: Date.now() });
+      this.refreshJoin();
+      clearTimeout(this.liveT); this.liveT = setTimeout(() => this.refreshJoin(), this.LIVE_MS + 500);
+    },
+    refreshJoin() {
+      const btn = $('#dm-join'); if (!btn) return;
+      const c = DM.current();
+      btn.classList.toggle('hidden', !(c && c.isGroup && this.liveCall(c.id) && !(S.call && S.call.conv === c.id)));
+    },
+    joinOpen() { const c = DM.current(), l = c && this.liveCall(c.id); if (l) this.start(l.video); else this.refreshJoin(); },
+
+    /* ---------- Start / join / accept ---------- */
+    async start(video) {
+      if (S.call) { callRoot.classList.remove('hidden'); return; }
+      const info = DM.groupCallInfo(); if (!info || !this.canCall()) return;
+      const live = this.liveCall(info.conv);
+      if (live) { // a call is already going on in this group: join it instead of starting another
+        S.call = this.newCall(info, { id: live.id, dir: 'in', video: video, state: 'incoming' });
+        this.accept(true);
+        return;
+      }
+      const c = S.call = this.newCall(info, { id: uuid(), dir: 'out', video: video });
+      closeEmoji(); DM.closeEmoji(); closeMsgMenu();
+      showCallUI();
+      let stream;
+      try { stream = await getMedia(video); }
+      catch (e) { if (S.call === c) endCall('cancel', true); toast(mediaErrorMsg(e), { icon: 'alert', duration: 5000 }); return; }
+      if (S.call !== c) { stopStream(stream); return; }
+      c.local = stream; c.video = hasLiveVideo(stream); c.state = 'ringing';
+      const ring = () => {
+        if (S.call !== c || Date.now() - c.created > CONFIG.CALL_RING_TIMEOUT) { clearInterval(c.ringT); c.ringT = null; return; }
+        this.signal(c, { t: 'ring', video: c.video, n: c.peers.size + 1 });
+      };
+      ring();
+      c.ringT = setInterval(ring, 3000); // repeat — reaches members whose channel is still connecting
+      this.startAlive(c);
+      Tone.start('ringback');
+      setTimer('callRing', () => { if (S.call === c && !c.startedAt) { this.signal(c, { t: 'leave', last: this.isLast(c) }); endCall('no-answer'); } }, CONFIG.CALL_RING_TIMEOUT);
+      DM.postText(c.conv, '📞 Started a group ' + (c.video ? 'video' : 'voice') + ' call');
+      renderCall();
+    },
+    async accept(withVideo) {
+      const c = S.call;
+      if (!c || c.kind !== 'group' || c.state !== 'incoming') return;
+      const live = this.liveCall(c.conv);
+      if (live && live.id === c.id && live.n >= CONFIG.GROUP_CALL_MAX) {
+        endCall('full', true);
+        toast('This call is full — up to ' + CONFIG.GROUP_CALL_MAX + ' people can join.', { icon: 'phone' });
+        return;
+      }
+      if (!this.canCall()) { declineCall(); return; }
+      c.state = 'connecting';
+      Tone.stop(); stopTitleFlash(); clearTimer('callRing'); closeNotifs('fc-call');
+      closeEmoji(); DM.closeEmoji(); closeMsgMenu(); closeViewer();
+      showCallUI();
+      let stream;
+      try { stream = await getMedia(c.video && withVideo); }
+      catch (e) { toast(mediaErrorMsg(e), { icon: 'alert', duration: 5000 }); if (S.call === c) declineCall(); return; }
+      if (S.call !== c) { stopStream(stream); return; }
+      c.local = stream;
+      this.signal(c, { t: 'join', video: this.myVideo(c) });
+      this.startAlive(c);
+      this.refreshJoin();
+      setTimer('callRing', () => { if (S.call === c && !c.startedAt) { this.signal(c, { t: 'leave', last: false }); endCall('failed'); } }, 30000);
+      renderCall();
+    },
+    startAlive(c) {
+      clearInterval(c.aliveT);
+      c.aliveT = setInterval(() => { if (S.call === c && c.local) this.signal(c, { t: 'alive', video: this.myVideo(c), n: c.peers.size + 1 }); }, 8000);
+    },
+
+    /* ---------- Signalling ---------- */
+    onSignal(conv, p) {
+      if (!p || typeof p !== 'object' || typeof p.id !== 'string' || p.id.length > 64 || typeof p.t !== 'string' ||
+          typeof p.from !== 'string' || typeof p.dev !== 'string' || p.dev.length > 64 || !Auth.ready) return;
+      if (p.dev === DEVICE_ID) return;
+      if (p.to !== undefined && (p.to !== myId() || p.toDev !== DEVICE_ID)) return; // meant for another participant / device
+      // One at a time and in arrival order (offer before its ICE), even when a member list has to load first.
+      this.queue = this.queue.then(() => this.handle(conv, p)).catch((e) => { if (window.console) console.warn('[ForeverConnect] group call', e); });
+    },
+    async handle(conv, p) {
+      if (p.from === myId()) {
+        // My other device joined or declined this call: stop ringing here.
+        const c0 = S.call;
+        if (c0 && c0.kind === 'group' && c0.id === p.id && c0.state === 'incoming' && (p.t === 'join' || p.t === 'decline')) {
+          endCall('elsewhere', true);
+          toast(p.t === 'join' ? 'Joined on another device' : 'Declined on another device', { icon: 'phone' });
+        }
+        return;
+      }
+      if (!(await DM.isGroupMember(conv, p.from))) return; // only members of this group may take part
+      const c = S.call;
+      const mine = !!(c && c.kind === 'group' && c.conv === conv && c.id === p.id);
+      if (p.t === 'ring' || p.t === 'alive' || p.t === 'join') this.seen(conv, p);
+      if (p.t === 'leave' && p.last) { const l = this.live.get(conv); if (l && l.id === p.id) { this.live.delete(conv); this.refreshJoin(); } }
+      const peer = mine ? c.peers.get(p.from) : null;
+      const samePeer = !!(peer && peer.dev === p.dev);
+      switch (p.t) {
+        case 'ring': {
+          if (mine) { if (c.state === 'incoming') c.roster.set(p.from, Date.now()); return; }
+          if (c || this.done.has(p.id)) return; // busy on another call, or already answered this one
+          const info = DM.groupCallInfo(conv); if (!info) return;
+          const who = DM.memberCard(conv, p.from).name;
+          const nc = S.call = this.newCall(info, { id: p.id, dir: 'in', video: p.video === true, state: 'incoming', inviterName: who });
+          nc.roster.set(p.from, Date.now());
+          closeEmoji(); DM.closeEmoji(); closeMsgMenu(); closeViewer();
+          showCallUI();
+          Tone.start('ring');
+          flashTitle('📞 Incoming group call…');
+          if (!myFocused()) showNotify(info.title, who + ' · Incoming group ' + (nc.video ? 'video' : 'voice') + ' call…', { tag: 'fc-call', kind: 'call', sticky: true, icon: info.avatar, vibrate: [400, 200, 400, 200, 400] });
+          setTimer('callRing', () => { if (S.call === nc && nc.state === 'incoming') endCall('missed'); }, CONFIG.CALL_RING_TIMEOUT + 3000);
+          this.refreshJoin();
+          return;
+        }
+        case 'join':
+        case 'alive':
+          if (!mine) return;
+          if (c.state === 'incoming') { c.roster.set(p.from, Date.now()); return; }
+          if (this.inCall(c) && !samePeer) this.meet(c, p);
+          return;
+        case 'knock':
+          if (mine && this.inCall(c) && !samePeer && myId() < p.from) { if (peer) this.removePeer(c, p.from, true); this.addPeer(c, p.from, p.dev, true, p.video); }
+          return;
+        case 'offer': {
+          // Offers only come from the smaller id; a fresh offer always replaces any older connection to that person.
+          if (!mine || !this.inCall(c) || myId() < p.from || !p.sdp || typeof p.sdp.sdp !== 'string') return;
+          if (peer) this.removePeer(c, p.from, true);
+          else if (c.peers.size >= CONFIG.GROUP_CALL_MAX - 1) return;
+          const np = this.addPeer(c, p.from, p.dev, false, p.video);
+          if (np) this.onOffer(c, np, p.sdp.sdp);
+          return;
+        }
+        case 'answer':
+          if (samePeer && peer.offerer && p.sdp && typeof p.sdp.sdp === 'string') {
+            if (typeof p.video === 'boolean') peer.video = p.video;
+            this.onAnswer(c, peer, p.sdp.sdp);
+          }
+          return;
+        case 'ice': if (samePeer && Array.isArray(p.c)) p.c.slice(0, 50).forEach((cand) => this.addIce(peer, cand)); return;
+        case 'state': if (samePeer && typeof p.video === 'boolean') { peer.video = p.video; renderCall(); } return;
+        case 'leave':
+          if (!mine) return;
+          if (c.state === 'incoming') {
+            c.roster.delete(p.from);
+            if (!c.roster.size) endCall('missed'); // everyone who was in the call has gone
+            return;
+          }
+          if (samePeer) this.removePeer(c, p.from);
+          return;
+      }
+    },
+    // Someone new is in the call: the smaller id offers, the other knocks to ask for an offer.
+    meet(c, p) {
+      if (c.peers.has(p.from)) this.removePeer(c, p.from, true); // they switched devices / reloaded
+      if (c.peers.size >= CONFIG.GROUP_CALL_MAX - 1) return;
+      if (myId() < p.from) { this.addPeer(c, p.from, p.dev, true, p.video); return; }
+      const k = c.knocks.get(p.from) || 0;
+      if (Date.now() - k < 10000) return;
+      c.knocks.set(p.from, Date.now());
+      this.signal(c, { t: 'knock', to: p.from, toDev: p.dev, video: this.myVideo(c) });
+    },
+
+    /* ---------- One connection per other participant ---------- */
+    alive(c, peer) { return S.call === c && c.peers.get(peer.uid) === peer; },
+    addPeer(c, uid, dev, offerer, video) {
+      let pc;
+      try { pc = new RTCPeerConnection({ iceServers: DMCall.iceServers() }); } catch (e) { return null; }
+      const card = DM.memberCard(c.conv, uid);
+      const peer = { uid: uid, dev: dev, pc: pc, offerer: offerer, name: card.name, avatar: card.avatar, video: video !== false,
+        remote: null, connected: false, pendingIce: [], iceOut: [], iceT: null, dropT: null, failT: null, tile: null };
+      c.peers.set(uid, peer);
+      c.local.getTracks().forEach((t) => pc.addTrack(t, c.local));
+      pc.onicecandidate = (e) => {
+        if (!this.alive(c, peer) || !e.candidate) return;
+        peer.iceOut.push(e.candidate.toJSON ? e.candidate.toJSON() : e.candidate);
+        if (!peer.iceT) peer.iceT = setTimeout(() => { peer.iceT = null; const b = peer.iceOut.splice(0); if (b.length && this.alive(c, peer)) this.to(c, peer, { t: 'ice', c: b }); }, 250);
+      };
+      pc.ontrack = (e) => {
+        if (!this.alive(c, peer)) return;
+        peer.remote = (e.streams && e.streams[0]) || peer.remote || new MediaStream();
+        if (!e.streams || !e.streams[0]) peer.remote.addTrack(e.track);
+        renderCall();
+      };
+      pc.oniceconnectionstatechange = () => {
+        if (!this.alive(c, peer)) return;
+        const st = pc.iceConnectionState;
+        if (st === 'connected' || st === 'completed') {
+          clearTimeout(peer.dropT); peer.dropT = null;
+          if (!peer.connected) { peer.connected = true; clearTimeout(peer.failT); this.onPeerUp(c); }
+        } else if (st === 'failed') this.removePeer(c, uid);
+        else if (st === 'disconnected') {
+          clearTimeout(peer.dropT);
+          peer.dropT = setTimeout(() => { if (this.alive(c, peer) && pc.iceConnectionState !== 'connected' && pc.iceConnectionState !== 'completed') this.removePeer(c, uid); }, 10000);
+        }
+      };
+      // Never connected (closed the app mid-handshake, blocked network): give up on this one person.
+      peer.failT = setTimeout(() => { if (this.alive(c, peer) && !peer.connected) this.removePeer(c, uid); }, 30000);
+      if (offerer) this.makeOffer(c, peer);
+      renderCall();
+      return peer;
+    },
+    async makeOffer(c, peer) {
+      try {
+        await peer.pc.setLocalDescription(await peer.pc.createOffer());
+        if (this.alive(c, peer)) this.to(c, peer, { t: 'offer', sdp: { type: 'offer', sdp: peer.pc.localDescription.sdp }, video: this.myVideo(c) });
+      } catch (e) { if (this.alive(c, peer)) this.removePeer(c, peer.uid); }
+    },
+    async onOffer(c, peer, sdp) {
+      try {
+        await peer.pc.setRemoteDescription({ type: 'offer', sdp: sdp });
+        this.flushIce(peer);
+        await peer.pc.setLocalDescription(await peer.pc.createAnswer());
+        if (this.alive(c, peer)) this.to(c, peer, { t: 'answer', sdp: { type: 'answer', sdp: peer.pc.localDescription.sdp }, video: this.myVideo(c) });
+      } catch (e) { if (this.alive(c, peer)) this.removePeer(c, peer.uid); }
+    },
+    async onAnswer(c, peer, sdp) {
+      if (peer.pc.signalingState !== 'have-local-offer') return;
+      try { await peer.pc.setRemoteDescription({ type: 'answer', sdp: sdp }); this.flushIce(peer); }
+      catch (e) { if (this.alive(c, peer)) this.removePeer(c, peer.uid); }
+    },
+    addIce(peer, cand) {
+      if (!cand || typeof cand !== 'object') return;
+      if (peer.pc.remoteDescription && peer.pc.remoteDescription.type) peer.pc.addIceCandidate(cand).catch(() => {});
+      else if (peer.pendingIce.length < 100) peer.pendingIce.push(cand);
+    },
+    flushIce(peer) { peer.pendingIce.splice(0).forEach((cand) => peer.pc.addIceCandidate(cand).catch(() => {})); },
+    onPeerUp(c) {
+      c.everConnected = true;
+      if (!c.startedAt) {
+        c.startedAt = Date.now(); c.state = 'active';
+        clearTimer('callRing'); Tone.stop(); stopTitleFlash();
+        clearInterval(callTick); callTick = setInterval(renderCallStatus, 1000);
+      }
+      renderCall();
+    },
+    closePeer(peer) {
+      clearTimeout(peer.iceT); clearTimeout(peer.dropT); clearTimeout(peer.failT);
+      try { peer.pc.close(); } catch (e) {}
+      if (peer.tile) { const v = peer.tile.querySelector('video'); if (v) v.srcObject = null; peer.tile.remove(); peer.tile = null; }
+    },
+    removePeer(c, uid, quiet) {
+      const peer = c.peers.get(uid); if (!peer) return;
+      c.peers.delete(uid); this.closePeer(peer);
+      if (quiet || S.call !== c) return;
+      if (c.everConnected && !c.peers.size) { // everyone else has left
+        this.signal(c, { t: 'leave', last: true });
+        endCall('remote-ended');
+        return;
+      }
+      renderCall();
+    },
+
+    /* ---------- Screen ---------- */
+    render(c) {
+      $('#call-name').textContent = c.title;
+      const cai = $('#call-av-img');
+      cai.classList.toggle('hidden', !c.avatar);
+      if (c.avatar) cai.src = c.avatar; else cai.removeAttribute('src');
+      const grid = $('#call-grid');
+      callRoot.classList.toggle('grid-on', c.state !== 'incoming' && c.peers.size > 0);
+      c.peers.forEach((peer) => {
+        if (!peer.tile) {
+          const t = peer.tile = el('div', 'call-tile');
+          const v = el('video'); v.autoplay = true; v.playsInline = true; v.setAttribute('playsinline', '');
+          const av = el('div', 'tile-av');
+          t.appendChild(v); t.appendChild(av); t.appendChild(el('span', 'tile-name', peer.name));
+          paintAvatar(av, peer.name, peer.avatar);
+        }
+        const v = peer.tile.querySelector('video');
+        if (peer.remote && v.srcObject !== peer.remote) { v.srcObject = peer.remote; const pl = v.play(); if (pl && pl.catch) pl.catch(() => {}); }
+        peer.tile.classList.toggle('vid', !!(peer.connected && peer.video && hasLiveVideo(peer.remote)));
+        peer.tile.classList.toggle('wait', !peer.connected);
+        if (peer.tile.parentNode !== grid) grid.appendChild(peer.tile);
+      });
+      grid.dataset.n = String(c.peers.size);
+    },
+    cleanup(c) {
+      clearInterval(c.ringT); clearInterval(c.aliveT); c.ringT = null; c.aliveT = null;
+      if (this.inCall(c) && this.isLast(c)) { const l = this.live.get(c.conv); if (l && l.id === c.id) this.live.delete(c.conv); }
+      c.peers.forEach((peer) => this.closePeer(peer)); c.peers.clear();
+      this.done.add(c.id);
+      $('#call-grid').textContent = '';
+      callRoot.classList.remove('grid-on', 'group-call');
+      setTimeout(() => this.refreshJoin(), 0);
+    },
+    after(c, reason) {
+      const kind = 'group ' + (c.video ? 'video' : 'voice') + ' call';
+      if (c.startedAt) toast('📞 ' + (reason === 'hangup' ? 'You left the ' : 'Ended ') + kind + ' · ' + fmtDur(Date.now() - c.startedAt), { icon: 'phone' });
+      else if (c.dir === 'in' && reason === 'missed') {
+        if (!myFocused()) showNotify(c.title, 'Missed ' + kind, { tag: 'fc-missed', kind: 'dm', conv: c.conv });
+        toast('Missed ' + kind + ' in ' + c.title, { icon: 'phone', action: { label: 'Open', fn: () => DM.open(c.conv) } });
+      }
+      else if (c.dir === 'out' && reason === 'no-answer') toast('📞 No one answered the ' + kind, { icon: 'phone' });
+      else if (reason === 'failed') toast('📞 Couldn’t connect to the ' + kind, { icon: 'phone' });
     }
   };
 
