@@ -1070,8 +1070,11 @@ drop policy if exists "profiles: visible to self and contacts" on public.profile
 drop policy if exists "profiles: owner can update"             on public.profiles;
 create policy "profiles: visible to self and contacts" on public.profiles
   for select to authenticated using (public.can_view_profile(id));
+-- Guests (anonymous sign-ins) may set a display name but never a username, so they
+-- can't be found by search or pulled into private chats / groups.
 create policy "profiles: owner can update" on public.profiles
-  for update to authenticated using (id = (select auth.uid())) with check (id = (select auth.uid()));
+  for update to authenticated using (id = (select auth.uid()))
+  with check (id = (select auth.uid()) and (username is null or not public.is_anonymous_user()));
 
 -- user_presence (writes only through touch_presence)
 drop policy if exists "presence: visible to self and contacts" on public.user_presence;
@@ -1095,7 +1098,8 @@ create policy "messages: participants can read" on public.messages
   for select to authenticated using (public.is_conversation_participant(conversation_id));
 create policy "messages: participants can send" on public.messages
   for insert to authenticated
-  with check (sender_id = (select auth.uid()) and kind <> 'system' and public.is_conversation_participant(conversation_id));
+  with check (sender_id = (select auth.uid()) and kind <> 'system' and not public.is_anonymous_user()
+              and public.is_conversation_participant(conversation_id));
 create policy "messages: sender can edit" on public.messages
   for update to authenticated
   using (sender_id = (select auth.uid()) and kind <> 'system' and public.is_conversation_participant(conversation_id))
