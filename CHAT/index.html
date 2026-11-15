@@ -268,6 +268,24 @@ html[data-theme="light"] .theme-toggle .i-sun{display:none}
 .screen-title{font-size:clamp(25px,6.6vw,32px);font-weight:700;letter-spacing:-.025em;line-height:1.12}
 
 .cards{display:grid;gap:14px;width:100%;margin-top:30px}
+/* Recent Secret Rooms, guest mode */
+.recent-rooms{width:100%;margin-top:22px;text-align:left}
+.recent-rooms .list-label{margin-left:6px}
+.rr-row{display:flex;align-items:center;gap:4px}
+.rr-row .conv-item{flex:1;min-width:0}
+.rr-row .avatar{width:46px;height:46px;box-shadow:none}
+.rr-row .avatar.host-av{background:var(--alt-grad)}
+.rr-row .avatar svg{width:20px;height:20px}
+.rr-more{flex:none}
+.rr-badge{font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent);flex:none}
+.guest-bar{display:flex;align-items:center;gap:12px;width:100%;margin-top:22px;padding:12px 14px;border-radius:20px;text-align:left}
+.guest-bar .gb-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.guest-bar b{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.guest-bar small{font-size:12.5px;color:var(--text-3)}
+.auth-or{display:flex;align-items:center;gap:12px;width:100%;margin:22px 0 14px;color:var(--text-3);font-size:12px;text-transform:uppercase;letter-spacing:.14em}
+.auth-or::before,.auth-or::after{content:"";flex:1;height:1px;background:var(--glass-border)}
+#auth-guest-room{width:100%}
+#auth-guest-error:empty{display:none}
 .action-card{
   display:flex;align-items:center;gap:16px;padding:18px 18px 18px 18px;border-radius:var(--r-lg);
   text-align:left;width:100%;position:relative;overflow:hidden;
@@ -495,11 +513,16 @@ html[data-theme="light"] .theme-toggle .i-sun{display:none}
   border-radius:26px;padding:10px;transform-origin:bottom left;animation:popIn .35s var(--spring) both;
 }
 @keyframes popIn{from{opacity:0;transform:scale(.85) translateY(10px)}}
-.emoji-tabs{display:flex;gap:4px;margin-bottom:6px}
-.emoji-tab{flex:1;height:38px;border-radius:12px;font-size:19px;transition:background .2s}
+.emoji-tabs{display:flex;gap:2px;margin-bottom:6px;overflow-x:auto;scrollbar-width:none;overscroll-behavior:contain}
+.emoji-tabs::-webkit-scrollbar{display:none}
+.emoji-tab{flex:1 0 34px;height:36px;border-radius:12px;font-size:18px;transition:background .2s}
 .emoji-tab.active{background:var(--tile-bg);box-shadow:inset 0 0 0 1px var(--glass-border)}
-.emoji-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:2px;max-height:228px;overflow-y:auto;overscroll-behavior:contain}
-.emoji-grid button{font-size:25px;height:42px;border-radius:12px;transition:transform .2s var(--spring), background .2s;line-height:1}
+.emoji-grid{position:relative;display:block;height:248px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.emoji-sec{position:sticky;top:0;z-index:1;padding:6px 6px 4px;font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-2);background:var(--emoji-sec-bg, rgba(20,14,28,.86));backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-radius:8px}
+:root[data-theme="light"] .emoji-sec{--emoji-sec-bg:rgba(255,255,255,.9)}
+.emoji-set{display:grid;grid-template-columns:repeat(8,1fr);gap:2px;margin-bottom:6px}
+.emoji-sec.hidden,.emoji-set.hidden,.emoji-tab.hidden{display:none}
+.emoji-grid button{font-size:25px;height:42px;border-radius:12px;transition:transform .2s var(--spring), background .2s;line-height:1;font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif}
 .emoji-grid button:hover{background:var(--tile-bg)}
 .emoji-grid button:active{transform:scale(1.3)}
 
@@ -516,7 +539,7 @@ html[data-theme="light"] .theme-toggle .i-sun{display:none}
 .modal-icon.danger{background:linear-gradient(135deg,#ff6b7d,#e0304f);box-shadow:0 12px 26px -10px rgba(224,48,79,.6)}
 .modal-icon svg{width:28px;height:28px}
 .modal h3{font-size:21px;font-weight:700;letter-spacing:-.02em}
-.modal p{margin-top:9px;color:var(--text-2);font-size:15px;line-height:1.48}
+.modal p{margin-top:9px;color:var(--text-2);font-size:15px;line-height:1.48;white-space:pre-line;max-height:52vh;overflow-y:auto}
 .modal-actions{display:flex;gap:10px;margin-top:24px}
 .modal-actions .btn{flex:1;height:50px;padding:0 12px;font-size:15px;min-width:0}
 
@@ -986,7 +1009,14 @@ select.field option{color:#2c1521;background:#fff}
             <button class="btn btn-primary btn-block" id="auth-user-btn" type="submit"><i data-icon="heart"></i><span>Sign in</span></button>
           </form>
         </div>
-        <p class="foot-note">Your account, chats and Secret Rooms are protected by Supabase Auth and row-level security. Only the people in a conversation can read it.</p>
+        <div class="auth-or reveal" style="--d:.3s"><span>or</span></div>
+        <button type="button" class="action-card glass reveal" style="--d:.34s" id="auth-guest-room">
+          <span class="ac-icon alt"><i data-icon="key"></i></span>
+          <span class="ac-body"><span class="ac-title" style="display:block">Secret Room · no account</span><span class="ac-desc" style="display:block">Create a room or enter a 6-digit secret code without registering</span></span>
+          <span class="ac-arrow"><i data-icon="chev"></i></span>
+        </button>
+        <p class="error-text" id="auth-guest-error" role="alert"></p>
+        <p class="foot-note">Your account, chats and Secret Rooms are protected by Supabase Auth and row-level security. Only the people in a conversation can read it. Without an account, your rooms stay on this device until the room’s owner deletes them.</p>
       </div>
     </div>
   </section>
@@ -1114,6 +1144,11 @@ select.field option{color:#2c1521;background:#fff}
           <button class="btn btn-primary btn-sm" id="hb-btn">Return to Chat</button>
         </div>
 
+        <div class="guest-bar glass hidden" id="guest-bar">
+          <span class="gb-text"><b id="guest-name">Guest</b><small>No account · rooms are kept on this device</small></span>
+          <button class="btn btn-glass btn-sm" id="guest-rename"><i data-icon="edit"></i>Name</button>
+        </div>
+
         <div class="cards">
           <button class="action-card glass reveal" style="--d:.24s" id="btn-create">
             <span class="ac-icon"><i data-icon="sparkle"></i></span>
@@ -1127,12 +1162,17 @@ select.field option{color:#2c1521;background:#fff}
           </button>
         </div>
 
+        <div class="recent-rooms hidden" id="recent-rooms">
+          <div class="list-label">Recent rooms</div>
+          <div id="recent-rooms-list" role="list" aria-label="Recent rooms"></div>
+        </div>
+
         <div class="trust reveal" style="--d:.4s">
           <span><i data-icon="lock"></i>Encrypted in transit</span>
           <span><i data-icon="users"></i>Only two people</span>
           <span><i data-icon="shield"></i>Private to your room</span>
         </div>
-        <p class="foot-note reveal" style="--d:.46s">Your room and its messages are saved privately to your account, so refreshing or switching devices is safe. Closing the room or changing its code erases its history.</p>
+        <p class="foot-note reveal" style="--d:.46s">Your rooms, messages, photos and videos are saved privately until the room’s owner deletes the room. Tap a recent room to reopen it without the code. Deleting a room or changing its code erases its history.</p>
       </div>
     </div>
   </section>
@@ -1328,6 +1368,7 @@ select.field option{color:#2c1521;background:#fff}
     <div class="set-group">
       <button class="set-row" id="sheet-peer-name"><span class="ic"><i data-icon="heart"></i></span><span class="lbl">Their name<small>Rename them · only you see this</small></span><span class="val" id="sheet-peer-name-val">—</span><span class="chev"><i data-icon="chev"></i></span></button>
       <button class="set-row" id="sheet-notif"><span class="ic alt"><i data-icon="bell"></i></span><span class="lbl">Notifications<small id="sheet-notif-note">Get alerted for every message &amp; call</small></span><span class="val" id="sheet-notif-val">Off</span><span class="chev"><i data-icon="chev"></i></span></button>
+      <button class="set-row notif-test-row"><span class="ic alt"><i data-icon="bell"></i></span><span class="lbl">Test notification banner<small>Check that alerts pop up when you’re away</small></span><span class="chev"><i data-icon="chev"></i></span></button>
       <button class="set-row" id="sheet-theme"><span class="ic gray"><i data-icon="moon"></i></span><span class="lbl">Appearance</span><span class="val" id="sheet-theme-val">Dark</span><span class="chev"><i data-icon="chev"></i></span></button>
     </div>
     <div class="sheet-code-card">
@@ -1378,6 +1419,7 @@ select.field option{color:#2c1521;background:#fff}
     </div>
     <div class="set-group">
       <button class="set-row" id="pf-notif"><span class="ic alt"><i data-icon="bell"></i></span><span class="lbl">Notifications<small id="pf-notif-note">Get alerted for every message &amp; call</small></span><span class="val" id="pf-notif-val">Off</span><span class="chev"><i data-icon="chev"></i></span></button>
+      <button class="set-row notif-test-row"><span class="ic alt"><i data-icon="bell"></i></span><span class="lbl">Test notification banner<small>Check that alerts pop up when you’re away</small></span><span class="chev"><i data-icon="chev"></i></span></button>
       <button class="set-row" id="pf-theme"><span class="ic gray"><i data-icon="moon"></i></span><span class="lbl">Appearance</span><span class="val" id="pf-theme-val">Dark</span><span class="chev"><i data-icon="chev"></i></span></button>
       <button class="set-row" id="pf-rooms"><span class="ic"><i data-icon="key"></i></span><span class="lbl">Secret Room<small>Create or enter a 6-digit code</small></span><span class="chev"><i data-icon="chev"></i></span></button>
     </div>
@@ -1492,6 +1534,7 @@ select.field option{color:#2c1521;background:#fff}
     URL: 'https://qjzcsfxmliddufhkktrn.supabase.co',
     ANON_KEY: 'sb_publishable_5780ELS2VSU_P6llBn3Lfg_N1dxGLBO',
     AVATAR_BUCKET: 'avatars',
+    ROOM_MEDIA_BUCKET: 'room-media',      // Secret Room photos/videos (kept until the room is deleted)
     CHAT_MEDIA_BUCKET: 'chat-media',     // private bucket for photos / videos / files in private chats
     // Username accounts are stored in Supabase Auth as "<username>@<this domain>".
     // No e-mail is ever sent to it (turn OFF "Confirm email" in Auth settings).
@@ -1795,18 +1838,26 @@ select.field option{color:#2c1521;background:#fff}
      HOST (room owner)
      ========================================================= */
   async function createRoom() {
-    if (S.role === 'host') { goToActive(); return; }
-    if (S.role === 'guest') {
-      confirmModal({ icon: 'leave', title: 'Leave this connection?', message: 'You’re currently in someone else’s room. Leave it to create your own secret room?', confirm: 'Leave & Create', danger: true },
-        async () => { await leaveAsGuest(true); createRoom(); });
+    if (S.role) {
+      // You can be in several rooms: the current one stays saved under "Recent rooms".
+      confirmModal({ icon: 'sparkle', title: 'Create another room?', message: 'Your current room (code ' + fmtCode(S.code) + ') stays saved — reopen it any time from Recent rooms.', confirm: 'Create New Room' },
+        async () => { detachActiveRoom(); createRoom(); });
       return;
     }
     try { await loadPeerLib(); } catch (e) { libError(); return; }
     startHostSession();
   }
-
-  function startHostSession() {
+  /* Step out of the open room on this device only — membership, messages and media stay
+     on the server, so the room can be reopened from "Recent rooms". */
+  function detachActiveRoom() {
+    if (!S.role) return;
+    if (S.connected) send({ type: 'brb' });
     teardown();
+  }
+
+  function startHostSession(replaceId) {
+    teardown();
+    S.replaceRoom = replaceId || null; // "Change Code": the old room is replaced (deleted) on the server
     S.role = 'host';
     S.code = genCode();
     S.sessionId = uuid();
@@ -1819,9 +1870,10 @@ select.field option{color:#2c1521;background:#fff}
   /* Register the room in Supabase (retrying with a fresh code if it's taken), then go live on the network. */
   async function hostOpenRoom(gen) {
     for (let i = 0; i < 8; i++) {
-      const r = await Room.open(S.code, S.sessionId);
+      const r = await Room.open(S.code, S.sessionId, S.roomId || S.replaceRoom);
       if (gen !== S.generation || S.role !== 'host') return null;
-      if (r.ok) { S.roomId = r.id; Room.attach(); return true; }
+      if (r.ok) { S.roomId = r.id; S.replaceRoom = null; Room.attach(); return true; }
+      if (r.tooMany) return 'too_many';
       if (!r.taken) return false;
       S.code = genCode(); renderCode(); updateUI();
     }
@@ -1831,6 +1883,11 @@ select.field option{color:#2c1521;background:#fff}
     const gen = S.generation;
     hostOpenRoom(gen).then((ok) => {
       if (ok === null || gen !== S.generation) return;
+      if (ok === 'too_many') {
+        teardown(); showScreen('welcome');
+        showModal({ icon: 'key', title: 'Too many rooms', message: 'You already own 20 Secret Rooms. Delete one you no longer use (Recent rooms → ⋯ → Delete room), then try again.', buttons: [{ label: 'OK', kind: 'primary' }] });
+        return;
+      }
       if (!ok) { fatalHost('Your room couldn’t be saved to your account. Check your internet connection.'); return; }
       saveSoon();
       openHostPeer();
@@ -2066,7 +2123,11 @@ select.field option{color:#2c1521;background:#fff}
     }
     // teardown() closes the DataChannel, destroys the peer (old code ceases to exist on the
     // signaling server), clears messages; then a brand-new code + session id are generated.
-    startHostSession();
+    // The old room (with its stored photos/videos) is deleted on the server.
+    const oldId = S.roomId;
+    if (oldId) await Room.purgeMedia(oldId);
+    if (S.role !== 'host' || S.roomId !== oldId) return;
+    startHostSession(oldId);
     toast('A new secret code was created ✨', { icon: 'sparkle' });
   }
 
@@ -2083,16 +2144,7 @@ select.field option{color:#2c1521;background:#fff}
      GUEST
      ========================================================= */
   function openJoin() {
-    if (S.role === 'guest') {
-      confirmModal({ icon: 'leave', title: 'Leave current connection?', message: 'You’re already in a private chat. Leave it to enter a different code?', confirm: 'Leave', danger: true },
-        async () => { await leaveAsGuest(true); openJoin(); });
-      return;
-    }
-    if (S.role === 'host') {
-      confirmModal({ icon: 'leave', title: 'Close your secret room?', message: 'Joining another room will close your room (code ' + fmtCode(S.code) + ') and erase this chat.', confirm: 'Close & Continue', danger: true },
-        async () => { await closeRoom(true); openJoin(); });
-      return;
-    }
+    // Your current room (if any) stays open until the new code is accepted, and stays saved under "Recent rooms".
     codeInput.value = ''; renderOtp(); clearJoinError();
     showScreen('join');
   }
@@ -2101,7 +2153,7 @@ select.field option{color:#2c1521;background:#fff}
     if (e) e.preventDefault();
     const code = codeInput.value.replace(/\D/g, '');
     if (!/^\d{6}$/.test(code)) { showJoinError('Please enter all 6 digits of your secret code.'); return; }
-    if (S.role) { openJoin(); return; }
+    if (S.role && S.code === code) { goToActive(); return; } // already in this room
     joinBtn.disabled = true;
     try { await loadPeerLib(); }
     catch (err) { showJoinError('Couldn’t load the secure connection library. Check your internet and try again.'); joinBtn.disabled = false; return; }
@@ -2119,6 +2171,7 @@ select.field option{color:#2c1521;background:#fff}
       joinBtn.disabled = codeInput.value.length !== 6;
       return;
     }
+    detachActiveRoom(); // the previous room stays saved under "Recent rooms"
     startGuestSession(code, { roomId: j.roomId, token: token });
   }
 
@@ -2723,9 +2776,9 @@ select.field option{color:#2c1521;background:#fff}
     if (!S.role) return;
     const m = { id: uuid(), mine: true, kind: kind, mime: mime, size: blob.size, blob: blob, url: URL.createObjectURL(blob), ts: Date.now(), status: 'pending', progress: 0, reply: takeReply() };
     addMessage(m);
-    Room.saveMsg(m); // a placeholder row only — the photo/video itself never leaves the two devices
+    Room.saveMsg(m); // uploads the photo/video to the room's private storage, then saves the message row
     if (S.connected) queueTransfer(m);
-    else if (!S.queuedNoticeShown) { S.queuedNoticeShown = true; toast('Will be delivered as soon as you reconnect', { icon: 'clock' }); }
+    else if (!S.queuedNoticeShown) { S.queuedNoticeShown = true; toast('Saved to your room — your special person will see it when they open it', { icon: 'clock' }); }
   }
 
   let xferChain = Promise.resolve();
@@ -3328,22 +3381,71 @@ select.field option{color:#2c1521;background:#fff}
     o = o || {};
     if (!notifOn()) return;
     const opts = {
-      body: body, tag: o.tag || 'fc-msg', renotify: true,
+      body: body, tag: o.tag || 'fc-msg', renotify: true, timestamp: Date.now(),
       icon: S.peerAvatarData || Notif.icon, badge: Notif.icon,
-      vibrate: o.vibrate || [120, 60, 120], requireInteraction: !!o.sticky, silent: false,
+      vibrate: o.vibrate || [200, 80, 200], requireInteraction: !!o.sticky, silent: false,
       data: { url: location.href.split('#')[0], kind: o.kind || 'msg', conv: o.conv || null }
     };
     if (o.icon) opts.icon = o.icon;
     const fallback = () => {
       try {
+        Notif.live = Notif.live.filter((x) => { if (x.tag === opts.tag) { try { x.close(); } catch (e) {} return false; } return true; });
         const n = new Notification(title, opts);
         n.onclick = () => { n.close(); onNotifClick(opts.data.kind, opts.data.conv); };
         Notif.live.push(n);
         if (Notif.live.length > 10) Notif.live.shift();
       } catch (e) { /* e.g. Android Chrome requires the service worker */ }
     };
-    if (Notif.reg && Notif.reg.showNotification) Notif.reg.showNotification(title, opts).catch(fallback);
-    else fallback();
+    if (Notif.reg && Notif.reg.showNotification) {
+      // Replace (close + show) instead of silently updating the old notification with the
+      // same tag: phones only pop a heads-up banner for a NEW notification, so an update
+      // would otherwise land quietly in the status bar.
+      const reg = Notif.reg;
+      const prev = reg.getNotifications ? reg.getNotifications({ tag: opts.tag }).then((ns) => ns.forEach((n) => n.close())).catch(() => {}) : Promise.resolve();
+      prev.then(() => reg.showNotification(title, opts)).catch(fallback);
+    } else fallback();
+  }
+  /* Test: fire a notification a few seconds later so the user can leave the app and
+     check that it pops up as a banner; when they come back, offer setup help. */
+  let notifTestPending = false;
+  async function testNotification() {
+    if (notifPerm() !== 'granted') { await enableNotifications(); if (notifPerm() !== 'granted') return; }
+    if (Notif.muted) { Notif.muted = false; refreshSheets(); }
+    registerSW();
+    closeSheet(); Account.closeSheet();
+    toast('Now switch to another app or tab. A test notification arrives in 6 seconds…', { icon: 'bell', duration: 5500 });
+    setTimeout(() => {
+      showNotify('Forever Connect 💌', 'Test: this is how new messages appear while you’re away.', { tag: 'fc-test', kind: 'msg' });
+      if (document.hidden) notifTestPending = true; // ask when they come back
+      else setTimeout(askNotifResult, 1500);
+    }, 6000);
+  }
+  function askNotifResult() {
+    showModal({ icon: 'bell', title: 'Did it pop up on screen?',
+      message: 'You should have seen a banner at the top of the screen, not just an icon in the status bar.',
+      buttons: [{ label: 'Yes, it did', kind: 'primary' }, { label: 'No, help me', onClick: () => setTimeout(notifHelp, 60) }] });
+  }
+  function notifHelp() {
+    const android = /Android/i.test(navigator.userAgent);
+    const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+    let steps;
+    if (IS_IOS) {
+      steps = '1. Add Forever Connect to your Home Screen (Share → Add to Home Screen) and open it from there.\n' +
+        '2. iPhone Settings → Notifications → Forever Connect → turn on Allow Notifications and choose “Banners” (Persistent is best).\n' +
+        '3. Turn off Focus / Do Not Disturb.';
+    } else if (android) {
+      steps = (standalone ? '' : '1. Install the app: browser menu ⋮ → “Install app” / “Add to Home screen”, then open it from the home screen.\n') +
+        (standalone ? '1' : '2') + '. Phone Settings → Apps → ' + (standalone ? 'Forever Connect' : 'Chrome (or your browser)') + ' → Notifications.\n' +
+        (standalone ? '2' : '3') + '. Open the notification category' + (standalone ? '' : ' for this site') + ', set it to “Alerting” / “Allow sound” and turn ON “Pop on screen” (Samsung: Notification style → “Pop-up”).\n' +
+        (standalone ? '3' : '4') + '. Turn off Do Not Disturb, and set Battery → “Unrestricted” for the app so it isn’t put to sleep.';
+    } else {
+      steps = 'Windows: Settings → System → Notifications → your browser → turn on “Show notification banners”, and turn off Do Not Disturb / Focus.\n' +
+        'Mac: System Settings → Notifications → your browser → Alert style “Banners” or “Alerts”, and turn off Focus.';
+    }
+    showModal({ icon: 'bell', title: 'Turn on pop-up banners',
+      message: 'Your phone or computer decides whether an alert pops up as a banner or only shows in the status bar. The app can’t change this setting, but you can:\n\n' + steps +
+        '\n\nKeep Forever Connect open in the background (don’t swipe it away). If the system closes it, new messages show up when you open it again.',
+      buttons: [{ label: 'Test again', onClick: () => setTimeout(testNotification, 60) }, { label: 'Done', kind: 'primary' }] });
   }
   function closeNotifs(tag) {
     Notif.live = Notif.live.filter((n) => { if (!tag || n.tag === tag) { try { n.close(); } catch (e) {} return false; } return true; });
@@ -3369,7 +3471,7 @@ select.field option{color:#2c1521;background:#fff}
       try { p = await Notification.requestPermission(); }
       catch (e) { p = await new Promise((r) => Notification.requestPermission(r)); }
     }
-    if (p === 'granted') { Notif.muted = false; registerSW(); toast('Notifications on 🔔', { icon: 'bell' }); }
+    if (p === 'granted') { Notif.muted = false; registerSW(); toast('Notifications on 🔔', { icon: 'bell', duration: 6000, action: { label: 'Test', fn: testNotification } }); }
     else toast('Notifications were not allowed.', { icon: 'bell' });
     refreshSheets();
   }
@@ -3577,9 +3679,12 @@ select.field option{color:#2c1521;background:#fff}
     root.classList.toggle('split', on);
     if (on) $('#screen-chats').removeAttribute('inert');
   }
+  const GUEST_BLOCKED = { chats: 1, search: 1, group: 1, dm: 1, setup: 1 };
   function showScreen(name) {
+    if (Auth.guest && GUEST_BLOCKED[name]) name = 'welcome'; // guests only have Secret Rooms
     const prev = S.screen;
     S.screen = name;
+    if (name === 'welcome' && Auth.ready) Recent.load();
     $$('.screen').forEach((s) => {
       const on = s.id === 'screen-' + name;
       s.classList.toggle('active', on);
@@ -4083,29 +4188,95 @@ select.field option{color:#2c1521;background:#fff}
   /* =========================================================
      EMOJI
      ========================================================= */
-  const EMOJI = [
-    ['❤️', '❤️ 🧡 💛 💚 💙 💜 🤍 🖤 💖 💗 💓 💞 💕 💘 💝 💟 ❣️ 💌 💋 😘 😍 🥰 😻 💑 💏 🫶 🌹 💐 🌷 🌸 💍 🔐 ✨ 🌙 ⭐ 🌟 🔥 🦋 🕊️'],
-    ['😊', '😊 😀 😃 😄 😁 😆 🥹 😂 🤣 😉 😇 🙂 🙃 😌 😋 😛 😜 🤪 😝 🤗 🤭 🫢 🤫 🤔 😏 😳 🥺 😢 😭 😤 😴 🤤 😎 🤓 🥳 😮 🙈 🙉 🙊'],
-    ['👋', '👋 🤚 ✋ 👌 🤌 🤏 ✌️ 🤞 🫰 🤟 🤙 👍 👎 👏 🙌 👐 🤲 🙏 💪 🫂 👀 💯 ✅ 🎉 🎁 🎶 ☕ 🍷 🥂 🍫 🍰 🍓 🍕 🍿 🎧 📸 🎬 💤'],
-    ['🌙', '🌙 ☀️ 🌈 ☁️ 🌧️ ❄️ 🌊 🌻 🌼 🍀 🐝 🐶 🐱 🐰 🦊 🐻 🐼 🐨 🦄 🐧 🌍 🏖️ 🏝️ ⛰️ 🌃 🎆 🕯️ 🚗 ✈️ 🏠 ⏰ 📍 🗺️ 🎡 🎠 🪐 🌌 🌅']
+  // Full emoji set by category. "Recently used" is added on top at runtime.
+  const EMOJI_FLAGS = ('IN US GB CA AU NZ AE SA QA KW OM BH SG MY LK NP BD PK ID PH TH VN JP KR CN HK TW ZA NG KE GH EG MA TR IL DE FR IT ES PT NL BE CH AT SE NO DK FI IE PL CZ GR RO UA BR MX AR CO CL PE ' +
+    'AD AF AG AL AM AO AZ BA BB BF BG BI BJ BN BO BS BT BW BY BZ CD CF CG CI CM CR CU CV CY DJ DM DO DZ EC EE ER ET FJ FM GA GD GE GM GN GQ GT GW GY HN HR HT HU IQ IR IS JM JO KG KH KI KM KN KP KZ LA LB LC LI LR LS LT LU LV LY MC MD ME MG MH MK ML MM MN MR MT MU MV MW MZ NA NE NI NR PA PG PS PW PY RS RU RW SB SC SD SI SK SL SM SN SO SR SS ST SV SY SZ TD TG TJ TL TM TN TO TT TV TZ UG UY UZ VA VC VE VU WS XK YE ZM ZW EU UN')
+    .split(' ').map((c) => String.fromCodePoint(0x1F1E6 + c.charCodeAt(0) - 65, 0x1F1E6 + c.charCodeAt(1) - 65)).join(' ');
+  const EMOJI_CATS = [
+    ['❤️', 'Love', '❤️ 🧡 💛 💚 💙 💜 🤍 🖤 🤎 💖 💗 💓 💞 💕 💘 💝 💟 ❣️ 💔 ❤️‍🔥 ❤️‍🩹 💌 💋 😘 😍 🥰 😻 💑 💏 👩‍❤️‍👨 👩‍❤️‍👩 👨‍❤️‍👨 🫶 🤗 🌹 🥀 💐 🌷 🌸 🌺 💍 💎 🔐 🗝️ 🕯️ 🍫 🍓 🥂 🍾 🎁 🎀 💒 ✨ 🌙 ⭐ 🌟 🔥 🦋 🕊️ 🦢 🧸 🎶'],
+    ['😀', 'Smileys & emotion', '😀 😃 😄 😁 😆 😅 🤣 😂 🙂 🙃 🫠 😉 😊 😇 🥰 😍 🤩 😘 😗 ☺️ 😚 😙 🥲 😋 😛 😜 🤪 😝 🤑 🤗 🤭 🫢 🫣 🤫 🤔 🫡 🤐 🤨 😐 😑 😶 🫥 😶‍🌫️ 😏 😒 🙄 😬 😮‍💨 🤥 😌 😔 😪 🤤 😴 😷 🤒 🤕 🤢 🤮 🤧 🥵 🥶 🥴 😵 😵‍💫 🤯 🤠 🥳 🥸 😎 🤓 🧐 😕 🫤 😟 🙁 ☹️ 😮 😯 😲 😳 🥺 🥹 😦 😧 😨 😰 😥 😢 😭 😱 😖 😣 😞 😓 😩 😫 🥱 😤 😡 😠 🤬 😈 👿 💀 ☠️ 💩 🤡 👹 👺 👻 👽 👾 🤖 😺 😸 😹 😻 😼 😽 🙀 😿 😾 🙈 🙉 🙊 💯 💢 💥 💫 💦 💨 🕳️ 💬 👁️‍🗨️ 🗨️ 🗯️ 💭 💤'],
+    ['👋', 'People & body', '👋 🤚 🖐️ ✋ 🖖 🫱 🫲 🫳 🫴 👌 🤌 🤏 ✌️ 🤞 🫰 🤟 🤘 🤙 👈 👉 👆 🖕 👇 ☝️ 🫵 👍 👎 ✊ 👊 🤛 🤜 👏 🙌 🫶 👐 🤲 🤝 🙏 ✍️ 💅 🤳 💪 🦾 🦿 🦵 🦶 👂 🦻 👃 🧠 🫀 🫁 🦷 🦴 👀 👁️ 👅 👄 🫦 👶 🧒 👦 👧 🧑 👱 👨 🧔 👩 🧓 👴 👵 🙍 🙎 🙅 🙆 💁 🙋 🧏 🙇 🤦 🤷 🧑‍⚕️ 🧑‍🎓 🧑‍🏫 🧑‍⚖️ 🧑‍🌾 🧑‍🍳 🧑‍🔧 🧑‍🏭 🧑‍💼 🧑‍🔬 🧑‍💻 🧑‍🎤 🧑‍🎨 🧑‍✈️ 🧑‍🚀 🧑‍🚒 👮 🕵️ 💂 🥷 👷 🫅 🤴 👸 👳 👲 🧕 🤵 👰 🤰 🫃 🤱 🧑‍🍼 👼 🎅 🤶 🦸 🦹 🧙 🧚 🧛 🧜 🧝 🧞 🧟 🧌 💆 💇 🚶 🧍 🧎 🏃 💃 🕺 🕴️ 👯 🧖 🧗 🤺 🏇 ⛷️ 🏂 🏌️ 🏄 🚣 🏊 ⛹️ 🏋️ 🚴 🚵 🤸 🤼 🤽 🤾 🤹 🧘 🛀 🛌 🧑‍🤝‍🧑 👭 👫 👬 💏 💑 👪 🗣️ 👤 👥 🫂 👣'],
+    ['🐻', 'Animals & nature', '🐶 🐱 🐭 🐹 🐰 🦊 🐻 🐼 🐻‍❄️ 🐨 🐯 🦁 🐮 🐷 🐽 🐸 🐵 🐒 🐔 🐧 🐦 🐤 🐣 🐥 🦆 🦅 🦉 🦇 🐺 🐗 🐴 🦄 🐝 🪱 🐛 🦋 🐌 🐞 🐜 🪰 🪲 🪳 🦟 🦗 🕷️ 🕸️ 🦂 🐢 🐍 🦎 🦖 🦕 🐙 🦑 🦐 🦞 🦀 🪸 🐡 🐠 🐟 🐬 🐳 🐋 🦈 🦭 🐊 🐅 🐆 🦓 🦍 🦧 🦣 🐘 🦛 🦏 🐪 🐫 🦒 🦘 🦬 🐃 🐂 🐄 🐎 🐖 🐏 🐑 🦙 🐐 🦌 🐕 🐩 🦮 🐕‍🦺 🐈 🐈‍⬛ 🪶 🐓 🦃 🦤 🦚 🦜 🦢 🦩 🕊️ 🐇 🦝 🦨 🦡 🦫 🦦 🦥 🐁 🐀 🐿️ 🦔 🐾 🐉 🐲 🌵 🎄 🌲 🌳 🌴 🪵 🌱 🌿 ☘️ 🍀 🎍 🪴 🎋 🍃 🍂 🍁 🪺 🪹 🍄 🐚 🪨 🌾 💐 🌷 🌹 🥀 🪷 🌺 🌸 🌼 🌻 🌞 🌝 🌛 🌜 🌚 🌕 🌖 🌗 🌘 🌑 🌒 🌓 🌔 🌙 🌎 🌍 🌏 🪐 💫 ⭐ 🌟 ✨ ⚡ ☄️ 💥 🔥 🌪️ 🌈 ☀️ 🌤️ ⛅ 🌥️ ☁️ 🌦️ 🌧️ ⛈️ 🌩️ 🌨️ ❄️ ☃️ ⛄ 🌬️ 💨 💧 💦 🫧 ☔ ☂️ 🌊 🌫️'],
+    ['🍔', 'Food & drink', '🍏 🍎 🍐 🍊 🍋 🍌 🍉 🍇 🍓 🫐 🍈 🍒 🍑 🥭 🍍 🥥 🥝 🍅 🍆 🥑 🥦 🥬 🥒 🌶️ 🫑 🌽 🥕 🫒 🧄 🧅 🥔 🍠 🫘 🥐 🥯 🍞 🥖 🥨 🧀 🥚 🍳 🧈 🥞 🧇 🥓 🥩 🍗 🍖 🌭 🍔 🍟 🍕 🫓 🥪 🥙 🧆 🌮 🌯 🫔 🥗 🥘 🫕 🥫 🍝 🍜 🍲 🍛 🍣 🍱 🥟 🦪 🍤 🍙 🍚 🍘 🍥 🥠 🥮 🍢 🍡 🍧 🍨 🍦 🥧 🧁 🍰 🎂 🍮 🍭 🍬 🍫 🍿 🍩 🍪 🌰 🥜 🍯 🥛 🍼 🫖 ☕ 🍵 🧃 🥤 🧋 🍶 🍺 🍻 🥂 🍷 🥃 🍸 🍹 🧉 🍾 🧊 🥄 🍴 🍽️ 🥣 🥡 🥢 🧂 🫗 🫙'],
+    ['⚽', 'Activities', '⚽ 🏀 🏈 ⚾ 🥎 🎾 🏐 🏉 🥏 🎱 🪀 🏓 🏸 🏒 🏑 🥍 🏏 🪃 🥅 ⛳ 🪁 🏹 🎣 🤿 🥊 🥋 🎽 🛹 🛼 🛷 ⛸️ 🥌 🎿 🏆 🥇 🥈 🥉 🏅 🎖️ 🏵️ 🎗️ 🎫 🎟️ 🎪 🎭 🩰 🎨 🎬 🎤 🎧 🎼 🎹 🥁 🪘 🎷 🎺 🪗 🎸 🪕 🎻 🎲 ♟️ 🎯 🎳 🎮 🕹️ 🎰 🧩 🎃 🎆 🎇 🧨 ✨ 🎈 🎉 🎊 🎁 🎀 🎏 🎐 🎑 🧧 🪅 🪩 🪄 🔮 🧿 🪬 🧸 🪆 🃏 🀄 🎴'],
+    ['🚗', 'Travel & places', '🚗 🚕 🚙 🚌 🚎 🏎️ 🚓 🚑 🚒 🚐 🛻 🚚 🚛 🚜 🦯 🦽 🦼 🛴 🚲 🛵 🏍️ 🛺 🚨 🚔 🚍 🚘 🚖 🚡 🚠 🚟 🚃 🚋 🚞 🚝 🚄 🚅 🚈 🚂 🚆 🚇 🚊 🚉 ✈️ 🛫 🛬 🛩️ 💺 🛰️ 🚀 🛸 🚁 🛶 ⛵ 🚤 🛥️ 🛳️ ⛴️ 🚢 ⚓ 🛟 🪝 ⛽ 🚧 🚦 🚥 🚏 🗺️ 🗿 🗽 🗼 🏰 🏯 🏟️ 🎡 🎢 🎠 ⛲ ⛱️ 🏖️ 🏝️ 🏜️ 🌋 ⛰️ 🏔️ 🗻 🏕️ ⛺ 🛖 🏠 🏡 🏘️ 🏚️ 🏗️ 🏭 🏢 🏬 🏣 🏤 🏥 🏦 🏨 🏪 🏫 🏩 💒 🏛️ ⛪ 🕌 🕍 🛕 🕋 ⛩️ 🛤️ 🛣️ 🗾 🏞️ 🌅 🌄 🌠 🌇 🌆 🏙️ 🌃 🌌 🌉 🌁 🧭 ⏰ ⌚ ⏱️ ⏲️ 🕰️ ⌛ ⏳'],
+    ['💡', 'Objects', '👓 🕶️ 🥽 🥼 🦺 👔 👕 👖 🧣 🧤 🧥 🧦 👗 👘 🥻 🩱 🩲 🩳 👙 👚 👛 👜 👝 🛍️ 🎒 🩴 👞 👟 🥾 🥿 👠 👡 👢 👑 👒 🎩 🎓 🧢 🪖 ⛑️ 📿 💄 💍 💎 📱 📲 💻 ⌨️ 🖥️ 🖨️ 🖱️ 🖲️ 🗜️ 💽 💾 💿 📀 📼 📷 📸 📹 🎥 📽️ 🎞️ 📞 ☎️ 📟 📠 📺 📻 🎙️ 🎚️ 🎛️ 📡 🔋 🪫 🔌 💡 🔦 🕯️ 🪔 🧯 🛢️ 💸 💵 💴 💶 💷 🪙 💰 💳 🧾 💹 ⚖️ 🪜 🧰 🪛 🔧 🔨 ⚒️ 🛠️ ⛏️ 🪚 🔩 ⚙️ 🪤 🧱 ⛓️ 🧲 🔫 💣 🪓 🔪 🗡️ ⚔️ 🛡️ 🚬 ⚰️ 🪦 ⚱️ 🏺 💈 ⚗️ 🔭 🔬 🩹 🩺 🩻 🩼 💊 💉 🩸 🧬 🦠 🧫 🧪 🌡️ 🧹 🪠 🧺 🧻 🚽 🚰 🚿 🛁 🧼 🪥 🪒 🧽 🪣 🧴 🛎️ 🔑 🗝️ 🚪 🪑 🛋️ 🛏️ 🖼️ 🪞 🪟 🛒 🎎 🏮 ✉️ 📩 📨 📧 💌 📥 📤 📦 🏷️ 🪧 📪 📫 📬 📭 📮 📯 📜 📃 📄 📑 📊 📈 📉 🗒️ 🗓️ 📆 📅 🗑️ 📇 🗃️ 🗳️ 🗄️ 📋 📁 📂 🗂️ 🗞️ 📰 📓 📔 📒 📕 📗 📘 📙 📚 📖 🔖 🧷 🔗 📎 🖇️ 📐 📏 🧮 📌 📍 ✂️ 🖊️ 🖋️ ✒️ 🖌️ 🖍️ 📝 ✏️ 🔍 🔎 🔏 🔐 🔒 🔓'],
+    ['🔣', 'Symbols', '☮️ ✝️ ☪️ 🕉️ ☸️ ✡️ 🔯 🕎 ☯️ ☦️ 🛐 ⛎ ♈ ♉ ♊ ♋ ♌ ♍ ♎ ♏ ♐ ♑ ♒ ♓ 🆔 ⚛️ 🉑 ☢️ ☣️ 📴 📳 🈶 🈚 🈸 🈺 🈷️ ✴️ 🆚 💮 🉐 ㊙️ ㊗️ 🈴 🈵 🈹 🈲 🅰️ 🅱️ 🆎 🆑 🅾️ 🆘 ❌ ⭕ 🛑 ⛔ 📛 🚫 ♨️ 🚷 🚯 🚳 🚱 🔞 📵 🚭 ❗ ❕ ❓ ❔ ‼️ ⁉️ 🔅 🔆 〽️ ⚠️ 🚸 🔱 ⚜️ 🔰 ♻️ ✅ 🈯 ❇️ ✳️ ❎ 🌐 💠 Ⓜ️ 🌀 🏧 🚾 ♿ 🅿️ 🛗 🈳 🈂️ 🛂 🛃 🛄 🛅 🚹 🚺 🚼 ⚧️ 🚻 🚮 🎦 📶 🈁 🔣 ℹ️ 🔤 🔡 🔠 🆖 🆗 🆙 🆒 🆕 🆓 0️⃣ 1️⃣ 2️⃣ 3️⃣ 4️⃣ 5️⃣ 6️⃣ 7️⃣ 8️⃣ 9️⃣ 🔟 🔢 #️⃣ *️⃣ ⏏️ ▶️ ⏸️ ⏯️ ⏹️ ⏺️ ⏭️ ⏮️ ⏩ ⏪ ⏫ ⏬ ◀️ 🔼 🔽 ➡️ ⬅️ ⬆️ ⬇️ ↗️ ↘️ ↙️ ↖️ ↕️ ↔️ ↪️ ↩️ ⤴️ ⤵️ 🔀 🔁 🔂 🔄 🔃 🎵 🎶 ➕ ➖ ➗ ✖️ 🟰 ♾️ 💲 💱 ™️ ©️ ®️ 〰️ ➰ ➿ 🔚 🔙 🔛 🔝 🔜 ✔️ ☑️ 🔘 🔴 🟠 🟡 🟢 🔵 🟣 ⚫ ⚪ 🟤 🔺 🔻 🔸 🔹 🔶 🔷 🔳 🔲 ▪️ ▫️ ◾ ◽ ◼️ ◻️ 🟥 🟧 🟨 🟩 🟦 🟪 ⬛ ⬜ 🟫 🔈 🔇 🔉 🔊 🔔 🔕 📣 📢 ♠️ ♣️ ♥️ ♦️ 🕐 🕑 🕒 🕓 🕔 🕕 🕖 🕗 🕘 🕙 🕚 🕛'],
+    ['🏳️', 'Flags', '🏁 🚩 🎌 🏴 🏳️ 🏳️‍🌈 🏳️‍⚧️ 🏴‍☠️ ' + EMOJI_FLAGS]
   ];
-  let emojiTab = 0;
-  function buildEmoji() {
-    emojiTabs.textContent = '';
-    EMOJI.forEach((cat, i) => {
-      const b = el('button', 'emoji-tab' + (i === emojiTab ? ' active' : ''), cat[0]);
-      b.type = 'button';
-      b.setAttribute('aria-label', 'Emoji category ' + (i + 1));
-      b.addEventListener('click', () => { emojiTab = i; buildEmoji(); });
-      emojiTabs.appendChild(b);
-    });
-    emojiGrid.textContent = '';
-    EMOJI[emojiTab][1].split(' ').forEach((e) => {
-      const b = el('button', null, e);
-      b.type = 'button';
-      b.addEventListener('click', () => insertEmoji(e));
-      emojiGrid.appendChild(b);
-    });
+  // Recently used emojis (this device only).
+  const EmojiRecent = {
+    KEY: 'fc-emoji-recent', MAX: 32,
+    list() {
+      try { const a = JSON.parse(localStorage.getItem(this.KEY) || '[]'); return Array.isArray(a) ? a.filter((x) => typeof x === 'string' && x.length <= 24).slice(0, this.MAX) : []; }
+      catch (e) { return []; }
+    },
+    add(e) {
+      const a = [e].concat(this.list().filter((x) => x !== e)).slice(0, this.MAX);
+      try { localStorage.setItem(this.KEY, JSON.stringify(a)); } catch (x) {}
+    }
+  };
+  /* One emoji picker (used by the Secret Room chat and by private chats).
+     All categories live in one scrolling list; a tab jumps to its category and the
+     panel stays open. Built on first open; "Recently used" refreshes on every open. */
+  function makeEmojiPicker(tabsEl, gridEl, onPick) {
+    let built = false, raf = 0;
+    const secs = []; // { tab, head, set }
+    function emojiBtns(set, list) {
+      const f = document.createDocumentFragment(), seen = new Set();
+      list.forEach((e) => {
+        if (!e || seen.has(e)) return; seen.add(e);
+        const b = document.createElement('button'); b.type = 'button'; b.textContent = e; b.dataset.e = e;
+        f.appendChild(b);
+      });
+      set.textContent = ''; set.appendChild(f);
+    }
+    function setActive(i) { secs.forEach((s, k) => s.tab.classList.toggle('active', k === i)); }
+    function syncActive() {
+      raf = 0;
+      const top = gridEl.scrollTop + 10;
+      let cur = 0;
+      secs.forEach((s, k) => { if (!s.head.classList.contains('hidden') && s.head.offsetTop <= top) cur = k; });
+      setActive(cur);
+    }
+    function build() {
+      built = true;
+      tabsEl.textContent = ''; gridEl.textContent = '';
+      [['🕘', 'Recently used', '']].concat(EMOJI_CATS).forEach((cat, i) => {
+        const tab = el('button', 'emoji-tab', cat[0]); tab.type = 'button';
+        tab.title = cat[1]; tab.setAttribute('aria-label', cat[1]);
+        const head = el('div', 'emoji-sec', cat[1]);
+        const set = el('div', 'emoji-set'); set.setAttribute('role', 'group'); set.setAttribute('aria-label', cat[1]);
+        if (cat[2]) emojiBtns(set, cat[2].split(' '));
+        tab.addEventListener('click', () => {
+          // Jump to the category — the panel stays open.
+          gridEl.scrollTo({ top: head.offsetTop, behavior: 'smooth' });
+          setActive(i);
+        });
+        tabsEl.appendChild(tab); gridEl.appendChild(head); gridEl.appendChild(set);
+        secs.push({ tab: tab, head: head, set: set });
+      });
+      gridEl.addEventListener('click', (e) => {
+        const b = e.target.closest && e.target.closest('button[data-e]');
+        if (!b) return;
+        EmojiRecent.add(b.dataset.e);
+        onPick(b.dataset.e);
+      });
+      gridEl.addEventListener('scroll', () => { if (!raf) raf = requestAnimationFrame(syncActive); }, { passive: true });
+    }
+    function refreshRecent() {
+      const r = secs[0], list = EmojiRecent.list();
+      [r.tab, r.head, r.set].forEach((x) => x.classList.toggle('hidden', !list.length));
+      if (list.length) emojiBtns(r.set, list);
+    }
+    return {
+      open() {
+        if (!built) build();
+        refreshRecent();
+        gridEl.scrollTop = 0; // recently used first
+        syncActive();
+      }
+    };
   }
   function insertEmoji(e) {
     const s = typeof input.selectionStart === 'number' ? input.selectionStart : input.value.length;
@@ -4115,11 +4286,13 @@ select.field option{color:#2c1521;background:#fff}
     autoGrow(); updateSendBtn(); onInputTyping();
     if (!matchMedia('(pointer: coarse)').matches) input.focus();
   }
+  const roomEmoji = makeEmojiPicker(emojiTabs, emojiGrid, insertEmoji);
   function toggleEmoji() {
     const open = emojiPanel.classList.contains('hidden');
     emojiPanel.classList.toggle('hidden', !open);
     emojiBtn.classList.toggle('on', open);
     emojiBtn.setAttribute('aria-expanded', String(open));
+    if (open) roomEmoji.open();
     if (open && matchMedia('(pointer: coarse)').matches) input.blur();
   }
   function closeEmoji() {
@@ -4271,6 +4444,7 @@ select.field option{color:#2c1521;background:#fff}
     $('#sheet-peer-name').addEventListener('click', () => { closeSheet(); editPeerName(); });
     $('#sheet-theme').addEventListener('click', () => { toggleTheme(); renderSettings(); });
     $('#sheet-notif').addEventListener('click', toggleNotifications);
+    $$('.notif-test-row').forEach((b) => b.addEventListener('click', testNotification));
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.addEventListener('message', (e) => { if (e.data && e.data.type === 'fc-open') onNotifClick(e.data.kind, e.data.conv); });
     }
@@ -4317,6 +4491,7 @@ select.field option{color:#2c1521;background:#fff}
       sendPresence(false);
       if (Auth.ready) Presence.beat();
       if (document.hidden) return;
+      if (notifTestPending) { notifTestPending = false; setTimeout(askNotifResult, 500); }
       onBecameActive();
       if (Auth.ready) DM.onVisible();
       if (S.connected) {
@@ -4667,21 +4842,74 @@ select.field option{color:#2c1521;background:#fff}
   async function enterWithSession(session) {
     if (!session) { showScreen('auth'); return; }
     Auth.session = session; Auth.user = session.user;
+    Auth.guest = !!(session.user && session.user.is_anonymous); // Secret Room without an account
     try { sb.realtime.setAuth(session.access_token); } catch (e) {}
     let prof = await Account.load();
     if (prof === null) { await sb.rpc('ensure_my_profile'); prof = await Account.load(); }
     if (!prof) { bootError(prof === undefined ? 'Couldn’t load your profile. Check your connection — or run schema.sql in Supabase if this is a new project.' : 'Your profile couldn’t be created. Make sure schema.sql has been run in Supabase.'); return; }
     Auth.profile = prof;
     Account.render();
-    if (!prof.username) { showSetup(); return; }
+    if (!prof.username && !Auth.guest) { showSetup(); return; }
     await startApp();
   }
+  /* Guest mode (anonymous sign-in): Secret Rooms only — no chats, search or groups. */
+  async function guestSignIn() {
+    if (!sb) { $('#auth-guest-error').textContent = 'Supabase isn’t configured yet.'; return; }
+    const err = $('#auth-guest-error'), btn = $('#auth-guest-room');
+    err.textContent = '';
+    btn.disabled = true;
+    let res;
+    try { res = await sb.auth.signInAnonymously(); } catch (e) { res = { error: e }; }
+    btn.disabled = false;
+    if (res.error || !res.data || !res.data.session) {
+      const m = errText(res.error || '');
+      err.textContent = /anonymous/i.test(m)
+        ? 'Secret Rooms without an account aren’t enabled on the server yet (Supabase → Authentication → Sign In / Providers → turn on “Allow anonymous sign-ins”).'
+        : authErrMsg(res.error || 'Couldn’t start a guest session.');
+      return;
+    }
+    await enterWithSession(res.data.session);
+  }
+  function renderGuestUI() {
+    const g = !!Auth.guest;
+    $('#guest-bar').classList.toggle('hidden', !g);
+    if (g) $('#guest-name').textContent = (Auth.profile && Auth.profile.display_name) || 'Guest';
+    const back = $('#welcome-back');
+    back.innerHTML = icon(g ? 'leave' : 'back');
+    back.setAttribute('aria-label', g ? 'Leave guest mode' : 'Back to chats');
+    back.title = g ? 'Leave guest mode' : 'Chats';
+  }
+  function askGuestName(first) {
+    if (!Auth.guest || !Auth.profile) return;
+    promptModal({ icon: 'user', title: first ? 'What should we call you?' : 'Your name', message: 'Shown to the person in your Secret Room.', value: Auth.profile.display_name || '', placeholder: 'Your name', confirm: 'Save' }, async (v) => {
+      const name = cleanName(v) || null;
+      if (!name) return;
+      const { error } = await sb.from('profiles').update({ display_name: name }).eq('id', myId());
+      if (error) { toast('Couldn’t save your name: ' + authErrMsg(error), { icon: 'alert' }); return; }
+      Auth.profile.display_name = name;
+      Account.afterNameChange();
+      renderGuestUI();
+    });
+  }
+  function confirmLeaveGuest() {
+    confirmModal({ icon: 'leave', danger: true, title: 'Leave guest mode?',
+      message: 'You’ll be signed out on this device. Guest sessions can’t be signed back into, so your Recent rooms list will be gone from here. Rooms you joined can still be entered again with a new code from their owner.',
+      confirm: 'Leave' }, () => signOut(false));
+  }
   async function startApp() {
-    if (Auth.ready) { showScreen('chats'); return; }
+    if (Auth.ready) { showScreen(Auth.guest ? 'welcome' : 'chats'); return; }
     Auth.ready = true;
     Account.render();
     Account.syncRoomProfile();
     Presence.start();
+    renderGuestUI();
+    if (Auth.guest) {
+      showScreen('welcome');
+      maybeAskNotifications(true);
+      await resumeSecretRoom();
+      if (!Auth.profile.display_name) setTimeout(() => { if (!modalRoot.classList.contains('open')) askGuestName(true); }, 700);
+      return;
+    }
     DM.start();
     showScreen('chats');
     maybeAskNotifications(true);
@@ -4699,9 +4927,9 @@ select.field option{color:#2c1521;background:#fff}
       DM.stop();
       await Presence.stop(remote);
       if (!remote && sb) { try { await sb.auth.signOut(); } catch (e) {} }
-      Object.assign(Auth, { ready: false, session: null, user: null, profile: null, otpPhone: null });
+      Object.assign(Auth, { ready: false, session: null, user: null, profile: null, otpPhone: null, guest: false });
       S.me.name = ''; setRoomAvatarBlob(null);
-      Account.render();
+      Account.render(); renderGuestUI(); Recent.clear();
       Auth.mode = 'signin'; renderAuth();
       showScreen('auth');
     } finally { Auth.signingOut = false; }
@@ -4935,11 +5163,68 @@ select.field option{color:#2c1521;background:#fff}
   const Room = {
     ch: null, everSub: false, acks: new Set(), ackT: null,
     ok() { return !!(sb && Auth.ready); },
-    async open(code, session) {
+    async open(code, session, replace) {
       if (!this.ok()) return { ok: false };
-      const { data, error } = await sb.rpc('open_secret_room', { p_code: code, p_peer_session: session });
-      if (error) return { ok: false, taken: /code_taken/.test(errText(error)) };
+      const { data, error } = await sb.rpc('open_secret_room', { p_code: code, p_peer_session: session, p_replace: replace || null });
+      if (error) { const m = errText(error); return { ok: false, taken: /code_taken/.test(m), tooMany: /too_many_rooms/.test(m) }; }
       return { ok: true, id: data };
+    },
+    // "Recent rooms": every room I created or joined.
+    async list() {
+      if (!this.ok()) return null;
+      const { data, error } = await sb.rpc('list_my_secret_rooms');
+      if (error) { if (window.console) console.warn('[ForeverConnect] rooms', error); return null; }
+      return data || [];
+    },
+    /* ---- Stored photos & videos (bucket room-media: "<room>/<sender>/<file>") ---- */
+    bucket() { return sb.storage.from(SUPABASE_CONFIG.ROOM_MEDIA_BUCKET || 'room-media'); },
+    urls: new Map(),
+    async uploadMedia(m, rid) {
+      if (m.path) return true;
+      if (!m.blob) return false;
+      const path = rid + '/' + myId() + '/' + m.id + '.' + (MIME_EXT[m.mime] || 'bin');
+      const up = await this.bucket().upload(path, m.blob, { contentType: m.mime, cacheControl: '31536000', upsert: false });
+      if (up.error && /bucket not found/i.test(errText(up.error))) { m.noStore = true; return true; } // schema.sql not re-run: live-only as before
+      if (up.error && !/exists|duplicate/i.test(errText(up.error))) { if (window.console) console.warn('[ForeverConnect] room media upload', up.error); return false; }
+      m.path = path;
+      return true;
+    },
+    // Show a stored photo/video: fetch a short-lived signed link, then repaint the bubble.
+    async resolveMedia(m) {
+      if (!m || !m.path || !sb) return;
+      if (m.url && !m.urlPending) return;
+      const hit = this.urls.get(m.path);
+      if (hit && hit.exp > Date.now()) { m.url = hit.url; m.lost = false; refreshMsgEl(m); return; }
+      if (m.urlPending) return;
+      m.urlPending = true;
+      const { data, error } = await this.bucket().createSignedUrl(m.path, 6 * 3600);
+      m.urlPending = false;
+      if (error || !data || !data.signedUrl) { if (!m.url) { m.lost = true; refreshMsgEl(m); } return; }
+      this.urls.set(m.path, { url: data.signedUrl, exp: Date.now() + 5 * 3600 * 1000 });
+      if (!m.url) { m.url = data.signedUrl; m.lost = false; refreshMsgEl(m); }
+    },
+    // Delete every stored file of a room (the owner may delete all of them). Called before the room row is deleted.
+    async purgeMedia(rid) {
+      if (!rid || !this.ok()) return;
+      try {
+        const b = this.bucket(), paths = [];
+        const listAll = async (prefix) => {
+          const out = [];
+          for (let off = 0; off < 20000; off += 1000) {
+            const r = await b.list(prefix, { limit: 1000, offset: off });
+            if (r.error || !r.data) break;
+            out.push.apply(out, r.data);
+            if (r.data.length < 1000) break;
+          }
+          return out;
+        };
+        const top = await listAll(rid);
+        for (const f of top) {
+          if (f.id) { paths.push(rid + '/' + f.name); continue; }
+          (await listAll(rid + '/' + f.name)).forEach((x) => { if (x.id) paths.push(rid + '/' + f.name + '/' + x.name); });
+        }
+        for (let i = 0; i < paths.length; i += 100) await b.remove(paths.slice(i, i + 100));
+      } catch (e) { if (window.console) console.warn('[ForeverConnect] room media cleanup', e); }
     },
     async join(code, token) {
       if (!this.ok()) return { ok: false, reason: 'offline' };
@@ -4952,15 +5237,21 @@ select.field option{color:#2c1521;background:#fff}
       return row ? { ok: true, roomId: row.room_id } : { ok: false, reason: 'error' };
     },
     async leave(id) { if (id && this.ok()) { const { error } = await sb.rpc('leave_secret_room', { p_room: id }); if (error && window.console) console.warn('[ForeverConnect] leave room', error); } },
-    async close(id) { if (id && this.ok()) { const { error } = await sb.rpc('close_secret_room', { p_room: id }); if (error && window.console) console.warn('[ForeverConnect] close room', error); } },
-    async fetchMine() {
+    async close(id) {
+      if (!id || !this.ok()) return;
+      await this.purgeMedia(id); // photos/videos first — afterwards nobody can reach them
+      const { error } = await sb.rpc('close_secret_room', { p_room: id });
+      if (error && window.console) console.warn('[ForeverConnect] close room', error);
+    },
+    // One of my rooms (or the most recent one when id is omitted).
+    async fetchMine(id) {
       if (!this.ok()) return undefined;
-      const { data, error } = await sb.rpc('get_my_secret_room');
+      const { data, error } = await sb.rpc('get_my_secret_room', id ? { p_room: id } : {});
       if (error) { if (window.console) console.warn('[ForeverConnect] room', error); return undefined; }
       const r = Array.isArray(data) ? data[0] : data;
       return r || null;
     },
-    async exists(id) { const r = await this.fetchMine(); return r === undefined ? undefined : !!(r && r.room_id === id); },
+    async exists(id) { const r = await this.fetchMine(id); return r === undefined ? undefined : !!(r && r.room_id === id); },
     // Host: is this reconnection token the current guest of my room (per Supabase)?
     async verifyGuest(token) {
       if (!this.ok() || !S.roomId) return 'error';
@@ -4988,7 +5279,8 @@ select.field option{color:#2c1521;background:#fff}
     rowToMsg(r) {
       const mine = r.sender_id === myId();
       const m = { id: r.id, mine: mine, kind: r.kind, ts: localTs(r.created_at), edited: !!r.edited_at, db: true, replyId: r.reply_to_id || null, reply: null };
-      if (r.kind === 'text') m.text = r.body; else { m.mime = r.mime; m.lost = true; }
+      if (r.kind === 'text') m.text = r.body;
+      else { m.mime = r.mime; if (r.attachment_path) m.path = r.attachment_path; else m.lost = true; }
       if (mine) m.status = r.delivered_at ? 'delivered' : 'sent';
       return m;
     },
@@ -5001,27 +5293,38 @@ select.field option{color:#2c1521;background:#fff}
       const rid = S.roomId, gen = S.generation;
       const me = await sb.from('secret_room_participants').select('cleared_at').eq('room_id', rid).eq('user_id', myId()).maybeSingle();
       if (gen !== S.generation || S.roomId !== rid) return;
-      let q = sb.from('secret_room_messages').select('id, sender_id, kind, body, mime, reply_to_id, created_at, edited_at, delivered_at')
-        .eq('room_id', rid).order('created_at', { ascending: false }).limit(300);
-      if (me.data && me.data.cleared_at) q = q.gt('created_at', me.data.cleared_at);
-      const { data, error } = await q;
+      const cols = 'id, sender_id, kind, body, mime, reply_to_id, created_at, edited_at, delivered_at';
+      const query = (c) => {
+        let q = sb.from('secret_room_messages').select(c).eq('room_id', rid).order('created_at', { ascending: false }).limit(300);
+        if (me.data && me.data.cleared_at) q = q.gt('created_at', me.data.cleared_at);
+        return q;
+      };
+      let { data, error } = await query(cols + ', attachment_path');
+      if (error && /attachment_path/.test(errText(error))) ({ data, error } = await query(cols)); // schema.sql not re-run yet
       if (error || gen !== S.generation || S.roomId !== rid) return;
       const rows = (data || []).reverse();
       const pool = new Map(S.messages.filter((m) => !m.sys).map((m) => [m.id, m]));
-      const fresh = [];
+      const fresh = [], media = [];
       rows.forEach((r) => {
         const ex = pool.get(r.id);
-        if (!ex) { fresh.push(this.rowToMsg(r)); return; }
+        if (!ex) { const m = this.rowToMsg(r); fresh.push(m); if (m.path) media.push(m); return; }
         ex.db = true;
         if (!ex.mine && r.kind === 'text' && ex.kind === 'text' && r.body !== ex.text) { ex.text = r.body; ex.edited = !!r.edited_at; }
         if (ex.mine && ex.kind === 'text') { if (r.delivered_at) ex.status = 'delivered'; else if (ex.status === 'pending') ex.status = 'sent'; }
+        if (r.attachment_path && ex.kind !== 'text') {
+          ex.path = r.attachment_path;
+          if (ex.mine && r.delivered_at) ex.status = 'delivered';
+          else if (ex.mine && (ex.status === 'pending' || ex.status === 'failed')) ex.status = 'sent';
+          if (!ex.url) { ex.lost = false; media.push(ex); }
+        }
       });
       fresh.forEach((m) => { pool.set(m.id, m); if (!m.mine) S.seen.add(m.id); });
       fresh.forEach((m) => { if (m.replyId) m.reply = this.replyFor(m.replyId, pool); });
       S.messages = S.messages.concat(fresh).sort((a, b) => a.ts - b.ts);
       renderAllMessages();
+      media.forEach((m) => this.resolveMedia(m));
       if (S.screen === 'chat') scrollToBottom(true);
-      const undelivered = rows.filter((r) => r.sender_id !== myId() && !r.delivered_at && r.kind === 'text').map((r) => r.id);
+      const undelivered = rows.filter((r) => r.sender_id !== myId() && !r.delivered_at && (r.kind === 'text' || r.attachment_path)).map((r) => r.id);
       if (undelivered.length) this.markDelivered(undelivered);
       saveSoon();
       this.flushUnsaved();
@@ -5029,7 +5332,22 @@ select.field option{color:#2c1521;background:#fff}
     onInsert(r) {
       if (!r) return;
       if (r.sender_id === myId()) { const m = S.messages.find((x) => x.id === r.id); if (m) m.db = true; return; }
-      if (r.kind !== 'text') return; // photos/videos arrive over the live channel only
+      if (r.kind !== 'text') {
+        // A stored photo/video: show it even when the live peer-to-peer channel is down.
+        if (!r.attachment_path) return; // (older placeholder rows: the file comes over the live channel only)
+        const ex = S.messages.find((x) => !x.sys && x.id === r.id);
+        if (ex) { ex.path = r.attachment_path; if (!ex.url) { ex.lost = false; ex.receiving = false; ex.stalled = false; this.resolveMedia(ex); } return; }
+        if (S.seen.has(r.id)) return;
+        S.seen.add(r.id);
+        this.markDelivered(r.id);
+        const mm = this.rowToMsg(r);
+        if (mm.replyId) mm.reply = this.replyFor(mm.replyId, new Map(S.messages.filter((x) => !x.sys).map((x) => [x.id, x])));
+        hideTyping();
+        addMessage(mm);
+        this.resolveMedia(mm);
+        notifyIncoming(mm.kind === 'image' ? '📷 Photo' : '🎥 Video');
+        return;
+      }
       this.markDelivered(r.id);
       if (S.seen.has(r.id)) return;
       S.seen.add(r.id);
@@ -5044,22 +5362,37 @@ select.field option{color:#2c1521;background:#fff}
       const m = S.messages.find((x) => !x.sys && x.id === r.id);
       if (!m) return;
       if (r.sender_id === myId()) {
-        if (r.delivered_at && m.kind === 'text' && m.status !== 'delivered') { m.status = 'delivered'; updateTick(m); }
+        if (r.delivered_at && m.status !== 'delivered' && (m.kind === 'text' || m.path)) {
+          m.status = 'delivered';
+          if (m.kind === 'text') updateTick(m); else refreshMsgEl(m);
+        }
         return;
       }
       if (r.kind === 'text' && m.kind === 'text' && r.body !== m.text) { m.text = r.body; m.edited = true; refreshMsgEl(m); }
     },
     async saveMsg(m) {
       if (!this.ok() || !S.roomId || !m || m.sys || !m.mine || m.db || m.dbBusy) return;
-      const gen = S.generation, kind = m.kind || 'text';
+      const gen = S.generation, kind = m.kind || 'text', rid = S.roomId;
       m.dbBusy = true;
-      const row = { id: m.id, room_id: S.roomId, sender_id: myId(), kind: kind, body: kind === 'text' ? m.text : null, mime: kind === 'text' ? null : m.mime, reply_to_id: m.reply ? m.reply.id : null };
-      const { error } = await sb.from('secret_room_messages').insert(row);
+      // Photos/videos are uploaded first so the saved row can point at the stored file.
+      if (kind !== 'text' && !m.path && m.blob && !m.noStore) {
+        const ok = await this.uploadMedia(m, rid);
+        if (gen !== S.generation) { m.dbBusy = false; return; }
+        if (!ok) { m.dbBusy = false; return; } // retried later (flushUnsaved)
+      }
+      const row = { id: m.id, room_id: rid, sender_id: myId(), kind: kind, body: kind === 'text' ? m.text : null, mime: kind === 'text' ? null : m.mime, reply_to_id: m.reply ? m.reply.id : null };
+      if (m.path) row.attachment_path = m.path;
+      let { error } = await sb.from('secret_room_messages').insert(row);
+      if (error && row.attachment_path && /attachment_path/.test(errText(error))) { // schema.sql not re-run yet
+        delete row.attachment_path; m.noStore = true;
+        ({ error } = await sb.from('secret_room_messages').insert(row));
+      }
       m.dbBusy = false;
       if (gen !== S.generation) return;
       if (error && error.code !== '23505') { if (window.console) console.warn('[ForeverConnect] save room message', error); return; } // retried later
       m.db = true;
       if (kind === 'text' && m.status === 'pending') { m.status = 'sent'; updateTick(m); }
+      else if (kind !== 'text' && row.attachment_path && (m.status === 'pending' || m.status === 'failed')) { m.status = 'sent'; refreshMsgEl(m); }
       if (m.dbEditDirty) { m.dbEditDirty = false; this.editMsg(m); }
       saveSoon();
     },
@@ -5099,7 +5432,7 @@ select.field option{color:#2c1521;background:#fff}
     let openId = null, msgs = [], byId = new Map(), hasMore = false, loading = false, loadingOlder = false, tail = null;
     let replyTo = null, editing = null;
     let typingWho = '', typingCh = null, peerTyping = false, typingHideT = null, typingSent = false, typingStopT = null, lastTypingAt = 0;
-    let readT = null, deliverT = null, deliverIds = new Set(), listT = null, listRaf = 0, resyncT = null, lastResync = 0, emojiTab = 0, filter = '';
+    let readT = null, deliverT = null, deliverIds = new Set(), listT = null, listRaf = 0, resyncT = null, lastResync = 0, filter = '';
 
     const listEl = $('#conv-list'), emptyEl = $('#conv-empty'), loadingEl = $('#conv-loading');
     const thread = $('#dm-messages'), input = $('#dm-input'), sendBtn = $('#dm-send'), typingRow = $('#dm-typing-row'), newPill = $('#dm-new-pill');
@@ -6109,31 +6442,17 @@ select.field option{color:#2c1521;background:#fff}
         toast('Chat cleared', { icon: 'trash' });
       });
     }
-    function buildEmoji() {
-      const tabs = $('#dm-emoji-tabs'), grid = $('#dm-emoji-grid');
-      tabs.textContent = '';
-      EMOJI.forEach((cat, i) => {
-        const b = el('button', 'emoji-tab' + (i === emojiTab ? ' active' : ''), cat[0]); b.type = 'button';
-        b.setAttribute('aria-label', 'Emoji category ' + (i + 1));
-        b.addEventListener('click', () => { emojiTab = i; buildEmoji(); });
-        tabs.appendChild(b);
-      });
-      grid.textContent = '';
-      EMOJI[emojiTab][1].split(' ').forEach((e) => {
-        const b = el('button', null, e); b.type = 'button';
-        b.addEventListener('click', () => {
-          const s = typeof input.selectionStart === 'number' ? input.selectionStart : input.value.length;
-          const en = typeof input.selectionEnd === 'number' ? input.selectionEnd : s;
-          if (input.value.length + e.length > CONFIG.MAX_TEXT) return;
-          input.setRangeText(e, s, en, 'end'); autoGrow(); updateSendBtn(); onInputTyping();
-          if (!matchMedia('(pointer: coarse)').matches) input.focus();
-        });
-        grid.appendChild(b);
-      });
-    }
+    const dmEmoji = makeEmojiPicker($('#dm-emoji-tabs'), $('#dm-emoji-grid'), (e) => {
+      const s = typeof input.selectionStart === 'number' ? input.selectionStart : input.value.length;
+      const en = typeof input.selectionEnd === 'number' ? input.selectionEnd : s;
+      if (input.value.length + e.length > CONFIG.MAX_TEXT) return;
+      input.setRangeText(e, s, en, 'end'); autoGrow(); updateSendBtn(); onInputTyping();
+      if (!matchMedia('(pointer: coarse)').matches) input.focus();
+    });
     function toggleEmoji() {
       const open = emojiPanel.classList.contains('hidden');
       emojiPanel.classList.toggle('hidden', !open); emojiBtn.classList.toggle('on', open); emojiBtn.setAttribute('aria-expanded', String(open));
+      if (open) dmEmoji.open();
       if (open && matchMedia('(pointer: coarse)').matches) input.blur();
     }
     function closeEmoji() { emojiPanel.classList.add('hidden'); emojiBtn.classList.remove('on'); emojiBtn.setAttribute('aria-expanded', 'false'); }
@@ -6145,7 +6464,6 @@ select.field option{color:#2c1521;background:#fff}
 
     /* ---------- Events ---------- */
     function bind() {
-      buildEmoji();
       $('#dm-back').addEventListener('click', () => showScreen('chats'));
       $('#dm-voice').addEventListener('click', () => DMCall.start(false));
       $('#dm-video').addEventListener('click', () => DMCall.start(true));
@@ -6502,7 +6820,7 @@ select.field option{color:#2c1521;background:#fff}
         !msgMenu.classList.contains('hidden') || !callRoot.classList.contains('hidden') ||
         $$('.sheet-root').some((r) => r.classList.contains('open'));
     },
-    atRoot() { return this.roots.indexOf(S.screen) !== -1 && !this.overlayOpen(); },
+    atRoot() { return (this.roots.indexOf(S.screen) !== -1 || (Auth.guest && S.screen === 'welcome')) && !this.overlayOpen(); },
     sync() {
       if (this.queued) return;
       this.queued = true;
@@ -6822,7 +7140,9 @@ select.field option{color:#2c1521;background:#fff}
     $('#me-btn').addEventListener('click', () => Account.openSheet());
     ['#chats-new', '#fab-new', '#conv-empty-btn'].forEach((s) => $(s).addEventListener('click', () => Search.open()));
     $('#open-rooms').addEventListener('click', () => showScreen('welcome'));
-    $('#welcome-back').addEventListener('click', () => showScreen('chats'));
+    $('#welcome-back').addEventListener('click', () => { if (Auth.guest) confirmLeaveGuest(); else showScreen('chats'); });
+    $('#auth-guest-room').addEventListener('click', guestSignIn);
+    $('#guest-rename').addEventListener('click', () => askGuestName(false));
     $('#search-back').addEventListener('click', () => showScreen('chats'));
     $('#user-search').addEventListener('input', () => Search.onInput());
     $('#user-search').addEventListener('keydown', (e) => { if (e.key === 'Enter') { clearTimeout(Search.t); Search.run(e.target.value); } });
@@ -6861,7 +7181,7 @@ select.field option{color:#2c1521;background:#fff}
   function packMsg(m) {
     if (m.sys) return { sys: 1, id: m.id, text: m.text, ts: m.ts };
     const o = { id: m.id, mine: !!m.mine, kind: m.kind || 'text', ts: m.ts };
-    if (o.kind === 'text') o.text = m.text; else o.mime = m.mime;
+    if (o.kind === 'text') o.text = m.text; else { o.mime = m.mime; if (m.path) o.path = m.path; }
     if (m.mine) o.status = m.status;
     if (m.reply) o.reply = m.reply;
     if (m.edited) o.edited = 1;
@@ -6925,10 +7245,12 @@ select.field option{color:#2c1521;background:#fff}
         if (m.sys) return { id: m.id, sys: true, text: String(m.text || ''), ts: m.ts };
         const o = { id: m.id, mine: !!m.mine, kind: m.kind === 'image' || m.kind === 'video' ? m.kind : 'text', ts: Number(m.ts) || Date.now(), reply: m.reply || null, edited: !!m.edited, editDirty: !!m.editDirty, db: !!m.db };
         if (o.kind === 'text') o.text = String(m.text || '');
+        else if (typeof m.path === 'string' && m.path.length <= 300) { o.mime = m.mime; o.path = m.path; } // stored → re-download
         else { o.mime = m.mime; o.lost = true; } // photo/video bytes aren't kept across a refresh
-        if (o.mine) o.status = (o.kind !== 'text' && m.status === 'pending') ? 'failed' : (['pending', 'sent', 'delivered', 'failed'].indexOf(m.status) !== -1 ? m.status : 'sent');
+        if (o.mine) o.status = (o.kind !== 'text' && !o.path && m.status === 'pending') ? 'failed' : (['pending', 'sent', 'delivered', 'failed'].indexOf(m.status) !== -1 ? m.status : 'sent');
         return o;
       });
+      S.messages.forEach((m) => { if (m.path) Room.resolveMedia(m); });
       // (Your name & photo come from your account profile, not from the saved session.)
     } finally { restoring = false; }
     if (S.role === 'host') renderCode();
@@ -6968,10 +7290,98 @@ select.field option{color:#2c1521;background:#fff}
     else { S.reconnectAttempts = 0; guestConnect(); }
     saveSoon();
   }
+  /* =========================================================
+     RECENT ROOMS — every room you created or joined, reopened with one tap (no code needed)
+     ========================================================= */
+  const Recent = {
+    rows: [], seq: 0,
+    clear() { this.rows = []; this.seq++; this.render(); },
+    async load() {
+      const my = ++this.seq;
+      const rows = await Room.list();
+      if (my !== this.seq || rows === null) return;
+      this.rows = rows;
+      this.render();
+    },
+    ago(iso) {
+      if (!iso) return '';
+      const d = Date.now() - localTs(iso);
+      if (d < 60000) return 'just now';
+      if (d < 3600000) return Math.round(d / 60000) + ' min ago';
+      if (d < 86400000) return Math.round(d / 3600000) + ' h ago';
+      if (d < 7 * 86400000) return Math.round(d / 86400000) + ' d ago';
+      return new Date(localTs(iso)).toLocaleDateString([], { day: 'numeric', month: 'short' });
+    },
+    render() {
+      const box = $('#recent-rooms'), list = $('#recent-rooms-list');
+      list.textContent = '';
+      box.classList.toggle('hidden', !this.rows.length);
+      this.rows.forEach((r) => {
+        const host = r.my_role === 'host', active = S.roomId === r.room_id;
+        const row = el('div', 'rr-row'); row.setAttribute('role', 'listitem');
+        const b = el('button', 'conv-item' + (active ? ' current' : '')); b.type = 'button';
+        const av = el('span', 'avatar' + (host ? ' host-av' : ''));
+        if (r.partner_id) paintAvatar(av, r.partner_name || '?', avatarUrl(r.partner_avatar));
+        else av.innerHTML = icon('key');
+        const body = el('span', 'conv-body'), top = el('span', 'conv-top');
+        const name = r.partner_name || (host ? 'Your room' : 'Secret Room');
+        top.appendChild(el('span', 'conv-name', name));
+        if (active) top.appendChild(el('span', 'rr-badge', 'Open'));
+        else top.appendChild(el('span', 'conv-time', this.ago(r.last_message_at || r.joined_at)));
+        body.appendChild(top);
+        body.appendChild(el('span', 'conv-sub', 'Code ' + fmtCode(r.code) + ' · ' + (host ? 'You created' : 'Joined') + (r.partner_id ? '' : host ? ' · waiting for your person' : '')));
+        b.appendChild(av); b.appendChild(body);
+        b.setAttribute('aria-label', name + ', code ' + r.code);
+        b.addEventListener('click', () => this.open(r));
+        const more = el('button', 'icon-btn rr-more'); more.type = 'button';
+        more.innerHTML = icon('more'); more.setAttribute('aria-label', 'Room options'); more.title = 'Options';
+        more.addEventListener('click', (e) => {
+          e.stopPropagation();
+          showMenu([
+            ['copy', 'Copy code', () => copyText(r.code).then(() => toast('Code copied', { icon: 'copy' }))],
+            host ? ['trash', 'Delete room', () => this.remove(r)] : ['leave', 'Leave room', () => this.remove(r)]
+          ], more, true, null);
+        });
+        row.appendChild(b); row.appendChild(more);
+        list.appendChild(row);
+      });
+    },
+    async open(r) {
+      if (S.roomId === r.room_id && S.role) { goToActive(); return; }
+      const db = await Room.fetchMine(r.room_id);
+      if (db === undefined) { toast('Couldn’t open the room. Check your internet connection.', { icon: 'wifi' }); return; }
+      if (!db) { toast('This room no longer exists — its owner deleted it.', { icon: 'heartCrack' }); this.load(); return; }
+      try { await loadPeerLib(); } catch (e) { /* the room still opens; the live link retries */ }
+      detachActiveRoom();
+      resumeRoomFromServer(db);
+      showScreen(S.role === 'host' && !S.guestToken ? 'waiting' : 'chat'); // history loads in the background
+      this.render();
+    },
+    remove(r) {
+      const host = r.my_role === 'host', active = S.roomId === r.room_id && S.role;
+      confirmModal(host
+        ? { icon: 'trash', danger: true, title: 'Delete this room?', message: 'Room ' + fmtCode(r.code) + ' and all its messages, photos and videos will be erased for both of you. This can’t be undone.', confirm: 'Delete' }
+        : { icon: 'leave', danger: true, title: 'Leave this room?', message: 'You’ll lose access to room ' + fmtCode(r.code) + ' and its history. To come back you’ll need the code again.', confirm: 'Leave' },
+      async () => {
+        if (active) { if (host) await closeRoom(true); else await leaveAsGuest(true); }
+        else if (host) await Room.close(r.room_id);
+        else await Room.leave(r.room_id);
+        toast(host ? 'Room deleted and its history erased.' : 'You left the room.', { icon: 'ghost' });
+        if (S.screen !== 'welcome') showScreen('welcome'); else this.load();
+      });
+    }
+  };
+
   async function resumeSecretRoom() {
-    const db = await Room.fetchMine();
+    // Resume the room this tab had open (you can be in several rooms), else the most recent one.
+    let saved = null;
+    try { saved = JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null'); } catch (e) { saved = null; }
+    const want = saved && typeof saved.roomId === 'string' && /^[0-9a-f-]{36}$/i.test(saved.roomId) ? saved.roomId : null;
+    let db = await Room.fetchMine(want);
     const ok = await restoreSession(db).catch(() => { restoring = false; return false; });
-    if (!ok && db) resumeRoomFromServer(db);
+    if (ok) return;
+    if (want && db === null) db = await Room.fetchMine();
+    if (db) resumeRoomFromServer(db);
   }
 
   /* =========================================================
@@ -6981,7 +7391,6 @@ select.field option{color:#2c1521;background:#fff}
     $$('i[data-icon]').forEach((i) => { i.innerHTML = icon(i.getAttribute('data-icon')); });
     applyTheme(root.getAttribute('data-theme') || 'dark', false);
     spawnHearts();
-    buildEmoji();
     renderCode();
     renderAllMessages();
     renderPeer(); renderMyProfile(); renderComposeCtx();

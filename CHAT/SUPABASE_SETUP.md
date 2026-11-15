@@ -75,13 +75,13 @@ Dashboard → **Authentication → Sign In / Providers** (on older dashboards: *
 
 ```js
 AUTH_ENV: 'development',              // 'development' | 'production'
-DEV_TEST_PHONES: ['+919597288925'],   // numbers registered as test numbers in Supabase
 ```
 
 In **development**:
-- Mobile sign-in only accepts the numbers in `DEV_TEST_PHONES`. Any other number is refused before Supabase is contacted, so no real SMS can be sent and no SMS cost is incurred.
-- The sign-in screen shows a "Development mode" banner. Tap a listed number to fill it in.
+- Any number you add in Supabase under **Test Phone Numbers and OTPs** signs in with its fixed code, and no SMS is sent. The app doesn't list or restrict numbers; Supabase decides.
 - **The fixed OTP codes are stored only in Supabase, never in the app.** Supabase Auth still verifies every code, so authentication is never bypassed. A wrong code is rejected.
+- A number that isn't a test number would need a real SMS provider. Until you have one, the app shows a short "couldn't send a code" message for it.
+- Keep **Test OTPs Valid Until** set to a future date. Expired test codes stop working.
 
 Supabase dashboard setup for development:
 1. **Authentication → Sign In / Providers → Phone** → enable the Phone provider.
@@ -116,7 +116,21 @@ Username accounts use Supabase Auth's e-mail/password provider behind the scenes
 3. *(Recommended)* **Authentication → Sign In / Providers → Email → Minimum password length:** set it to 8, to match the app.
 4. If sign-up fails with *"Email address … is invalid"*, set `USERNAME_EMAIL_DOMAIN` in `index.html` to a domain you own. No mail is sent to it.
 
-### 4c. General
+### 4c. Secret Room without an account (anonymous sign-ins)
+
+The sign-in screen has a **Secret Room · no account** button. People who use it can create a room or enter a 6-digit code without registering. Behind the scenes this is a Supabase **anonymous sign-in**: a real, but nameless, auth user.
+
+1. **Authentication → Sign In / Providers** → turn on **Allow anonymous sign-ins** and save.
+2. *(Recommended)* **Authentication → Rate Limits**: keep the anonymous sign-in limit low (the default of 30 per hour per IP is fine). Turn on **CAPTCHA protection** (Authentication → Attack Protection) if you see abuse.
+
+What guests can and can't do:
+- Guests only see Secret Rooms. Chats, search and groups are hidden in the app, and the database refuses them too (`search_users`, `get_or_create_direct_conversation` and `create_group` raise `account_required`).
+- A guest's rooms are kept on that device (the anonymous session is stored in the browser). Chat, photos and videos stay available until the room's owner deletes the room or changes its code.
+- If a guest taps **Leave guest mode** or clears the browser's data, that guest identity is gone. Their seat in a room stays taken until the owner deletes the room or changes its code.
+
+Until this setting is on, the button shows "Secret Rooms without an account aren't enabled on the server yet".
+
+### 4d. General
 
 - **Allow new users to sign up:** ON.
 - **Authentication → URL Configuration → Site URL:** set it to your deployed URL, e.g. `https://love.example.com`. The app doesn't use e-mail links, but it's good practice.
@@ -133,6 +147,38 @@ Username accounts use Supabase Auth's e-mail/password provider behind the scenes
 To verify: Dashboard → **Storage** should show `avatars` marked **Public**. Under **Policies**, you should see four `avatars: owner can …` policies on `storage.objects`.
 
 If you prefer to create the bucket by hand, do it before running `schema.sql`: **Storage → New bucket** → name `avatars`, Public ON, file size limit 2 MB, allowed MIME types `image/jpeg, image/png, image/webp`. Then run `schema.sql`; it adopts the existing bucket.
+
+### Group chats
+
+Groups use the same tables as private chats:
+- A conversation has `is_group`, a title, a photo and member roles (`admin` / `member`).
+- Up to 256 people per group.
+- Creating a group and adding or removing members all happen in server functions (`create_group`, `add_group_members`, `remove_group_member`, `set_group_admin`, `leave_group`, `update_group`), which check admin rights.
+- Only members can read a group's messages and files, and removed members lose access immediately.
+- Voice and video calls stay one-to-one.
+
+Re-run `schema.sql` to add groups to an existing project.
+
+### Private-chat attachments (bucket `chat-media`)
+
+`schema.sql` also creates a **private** bucket called `chat-media` for photos, videos and files sent in private chats. Each file can be up to 50 MB, which is the Supabase free-plan limit.
+
+- Files are stored as `<conversation id>/<sender id>/<file>`.
+- Only the two people in the conversation can open them, through short-lived signed links.
+- You can only upload into your own folder, and a message can only point at a file its sender uploaded to that conversation.
+
+**Upgrading an existing project:** re-run the whole `schema.sql` in the SQL Editor. It's safe to run again, and it adds the attachment columns, the bucket and its policies. Until you do, private chats keep working for text, and the 📎 button tells you the database needs the update.
+
+### Secret Room photos and videos (bucket `room-media`)
+
+`schema.sql` creates a second **private** bucket, `room-media`, so Secret Room photos and videos are kept until the room is deleted (50 MB per file).
+
+- Files are stored as `<room id>/<sender id>/<file>`. Only the room's members can open them, through short-lived signed links.
+- You can only upload into your own folder. The uploader or the room's owner can delete files.
+- When the owner deletes a room or changes its code, the owner's app first deletes the room's files, then the room. (If a room disappears another way, for example when the owner's account is deleted, its files stay in the bucket. You can remove them in **Storage**.)
+- Photos and videos still go device-to-device too when both people are online, so they appear instantly.
+
+Until you re-run `schema.sql`, room photos and videos keep working live-only, as before.
 
 ## 6. RLS and Realtime: verify
 
@@ -178,7 +224,7 @@ Any static host works. Pick one:
 - **GitHub Pages:** push the files to a repo, then Settings → Pages → Deploy from branch.
 - **Your own server:** any web server with HTTPS.
 
-Then set **Site URL** (step 4c) to the deployed address.
+Then set **Site URL** (step 4d) to the deployed address.
 
 For local testing, `http://localhost` also counts as secure. For example, run `python -m http.server 8080` in the folder and open <http://localhost:8080>.
 
@@ -190,7 +236,9 @@ For local testing, `http://localhost` also counts as secure. For example, run `p
 4. **B:** the chat appears with an unread badge. Open it, and A's ticks turn to read ✓✓.
 5. Type on one side; **typing…** shows on the other. Close B's tab; A sees **last seen …**.
 6. Refresh both. All history is still there.
-7. **Secret Room:** A → Secret Room → Create → share the code → B → Enter Secret Code. You're connected peer-to-peer as before, and the text is now also saved. Refresh either side and the room resumes. Close the room and its history is erased.
+7. **Secret Room:** A → Secret Room → Create → share the code → B → Enter Secret Code. You're connected peer-to-peer as before, and text, photos and videos are saved. Refresh either side and the room resumes. Delete the room and its history and media are erased.
+8. **Guest:** in a private window, tap **Secret Room · no account** → enter a name → Enter Secret Code with a room code from A. The room works the same way, and it appears under **Recent rooms**.
+9. **Recent rooms:** on A, create a second room, then tap the first room under **Recent rooms**. It reopens without the code.
 
 ---
 
@@ -201,8 +249,10 @@ Everything that worked before still works the same way: the 6-digit code, live p
 - **Server-side room privacy.** Creating a room registers its code in your account. Joining validates the code in the database and claims the single guest seat. The host's device also checks every incoming peer connection against the database, so knowing the code alone isn't enough to impersonate the guest.
 - **Persistence.** Text messages are saved to `secret_room_messages`. A room survives refreshes, closed tabs and device changes: sign in anywhere and it resumes.
 - **Realtime fallback.** If the direct WebRTC link can't connect, for example on a strict network or when the partner is offline, text still arrives through Supabase Realtime.
-- **Photos and videos are never uploaded.** They still go device-to-device. History shows a "shared live · not stored" placeholder for them.
-- **Closing the room or changing its code permanently deletes** the room, its members and its history, matching the original privacy promise. **Leaving** as a guest frees the seat, and a new guest can only see messages sent after they join.
+- **Photos and videos are stored** in the private `room-media` bucket, and also go device-to-device when both people are online.
+- **Several rooms per person, with Recent rooms.** Creating or joining another room no longer closes the current one. Every room you created or joined is listed under **Recent rooms** on the Secret Room screen, and you can reopen any of them with one tap, without the code. Each person can own up to 20 rooms. The ⋯ menu on a recent room lets you copy its code, delete it (owner) or leave it (guest).
+- **No account needed.** Guests can use Secret Rooms through anonymous sign-in (step 4c).
+- **Deleting the room or changing its code permanently deletes** the room, its members, its history and its stored media, matching the original privacy promise. **Leaving** as a guest frees the seat, and a new guest can only see messages sent after they join.
 
 ## Security notes and limits
 
@@ -219,12 +269,13 @@ Everything that worked before still works the same way: the 6-digit code, live p
 | "The database isn't set up yet" or "Couldn't load your profile" | Run `schema.sql` (step 2). |
 | "Mobile sign-in isn't enabled on the server yet" | Enable the Phone provider and configure an SMS provider (step 4a). |
 | "No account uses this number yet" | That number hasn't registered. Use **Create account**. |
-| "Development mode: … isn't a test number" | Use a number from `DEV_TEST_PHONES`, or switch `AUTH_ENV` to `'production'` (step 4a-prod). |
-| "Development setup needed …" | Enable the Phone provider and add the test number and OTP in Supabase (step 4a-dev). |
-| "Supabase tried to send a real SMS …" | The number in `DEV_TEST_PHONES` doesn't exactly match a Supabase test number. Fix the test list. |
+| "We couldn't send a code to this number" | Add the number in Supabase → Phone → **Test Phone Numbers and OTPs** (country code, no `+`), keep **Test OTPs Valid Until** in the future, or configure a real SMS provider (step 4a). |
 | Username sign-up says to turn off e-mail confirmation | Turn off **Confirm email** (step 4b). |
 | "Email address … is invalid" on username sign-up | Set `USERNAME_EMAIL_DOMAIN` to a domain you own (step 4b). |
 | Profile photo upload fails | Check that the `avatars` bucket and its policies exist (step 5). |
 | Messages only appear after a refresh | Check that the Realtime publication includes the four tables (step 6). |
 | No "typing…" indicator (console: *typing channel unavailable*) | Re-run `schema.sql` to recreate the Realtime Authorization policies (step 6). |
 | Notifications or calls don't work | Serve the site over HTTPS (step 7). On iPhone, add it to the Home Screen first. |
+| Notifications appear only as a status-bar icon, with no pop-up banner | The phone decides this, not the app. Use **Settings → Test notification banner** in the app, then follow its steps: install the app to the home screen, set its notifications to Alerting, and turn on "Pop on screen". The app is kept alive only while it's open in the background. For alerts after the phone closes it, you'd need Web Push (not included). |
+| "Secret Rooms without an account aren't enabled" | Turn on **Allow anonymous sign-ins** (step 4c). |
+| Room photos show "shared live · not stored" | Re-run `schema.sql` to add the `room-media` bucket. Files sent before that weren't stored. |

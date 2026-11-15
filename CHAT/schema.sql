@@ -1,6 +1,7 @@
 -- =============================================================================
 --  Forever Connect — Supabase schema
 --  Private one-to-one messaging + Secret Rooms + presence + profile photos.
+--  Secret Rooms also work without an account (Supabase anonymous sign-ins).
 --
 --  Run the whole file once in Supabase → SQL Editor → New query → Run.
 --  It is idempotent: running it again upgrades functions/policies in place.
@@ -144,12 +145,13 @@ create table if not exists public.message_receipts (
 );
 
 -- ------------------------------------------------------------ secret_rooms ---
--- A live Secret Room (6-digit code). One room per owner. Closing the room or
--- changing its code deletes the row, which erases its participants and messages.
+-- A Secret Room (6-digit code). A user can own and join several rooms (shown as
+-- "Recent rooms"). Closing a room or changing its code deletes the row, which
+-- erases its participants and messages (the app also deletes its stored media).
 create table if not exists public.secret_rooms (
   id               uuid primary key default gen_random_uuid(),
   code             text not null unique,
-  owner_id         uuid not null unique references public.profiles (id) on delete cascade,
+  owner_id         uuid not null references public.profiles (id) on delete cascade,
   peer_session_id  uuid not null,       -- WebRTC session id used by the peer-to-peer protocol
   created_at       timestamptz not null default now(),
   updated_at       timestamptz not null default now(),
@@ -196,6 +198,17 @@ create table if not exists public.secret_room_messages (
   )
 );
 
+-- ---------------------------------------------- upgrades for existing projects ---
+-- Several rooms per user (Recent rooms): drop the old "one room per owner" rule.
+alter table public.secret_rooms drop constraint if exists secret_rooms_owner_id_key;
+create index if not exists secret_rooms_owner_idx on public.secret_rooms (owner_id);
+-- Room photos/videos are now stored (bucket "room-media") until the room is deleted.
+alter table public.secret_room_messages add column if not exists attachment_path text;
+alter table public.secret_room_messages drop constraint if exists srm_attachment;
+alter table public.secret_room_messages add constraint srm_attachment check (
+  attachment_path is null or (kind in ('image', 'video') and char_length(attachment_path) <= 300)
+);
+
 -- =============================================================================
 -- 2. INDEXES
 -- =============================================================================
@@ -228,6 +241,17 @@ returns boolean language sql stable security definer set search_path = public as
     select 1 from public.secret_room_participants
     where room_id = p_room and user_id = auth.uid()
   );
+$$;
+
+create or replace function public.is_room_owner(p_room uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.secret_rooms where id = p_room and owner_id = auth.uid());
+$$;
+
+-- True for Supabase anonymous sign-ins ("Secret Room without an account").
+create or replace function public.is_anonymous_user()
+returns boolean language sql stable as $$
+  select coalesce((auth.jwt() ->> 'is_anonymous')::boolean, false);
 $$;
 
 -- When the current user joined a room (null if not a member). A guest only sees
@@ -402,9 +426,15 @@ begin
     ) then
       new.reply_to_id := null;
     end if;
+    -- A stored photo/video must live in the sender's own folder of this room.
+    if new.attachment_path is not null
+       and left(new.attachment_path, 74) <> new.room_id::text || '/' || new.sender_id::text || '/' then
+      raise exception 'invalid_attachment_path' using errcode = '42501';
+    end if;
   else
     if new.id <> old.id or new.room_id <> old.room_id or new.sender_id <> old.sender_id
        or new.kind <> old.kind or new.mime is distinct from old.mime
+       or new.attachment_path is distinct from old.attachment_path
        or new.created_at <> old.created_at or new.reply_to_id is distinct from old.reply_to_id then
       raise exception 'Only the message text can be edited' using errcode = '42501';
     end if;
@@ -464,6 +494,7 @@ declare
   q text := lower(btrim(coalesce(p_query, '')));
 begin
   if auth.uid() is null then raise exception 'not_authenticated' using errcode = '28000'; end if;
+  if public.is_anonymous_user() then raise exception 'account_required' using errcode = '42501'; end if;
 
   if q ~ '^\+?[0-9 ()-]{7,24}$' then
     return query
@@ -509,6 +540,7 @@ declare
   v_id  uuid;
 begin
   if v_me is null then raise exception 'not_authenticated' using errcode = '28000'; end if;
+  if public.is_anonymous_user() then raise exception 'account_required' using errcode = '42501'; end if;
   if p_other is null or p_other = v_me then raise exception 'invalid_user' using errcode = '22023'; end if;
   if not exists (select 1 from public.profiles where id = p_other and username is not null) then
     raise exception 'user_not_found' using errcode = 'P0002';
@@ -645,6 +677,7 @@ declare
   v_members uuid[];
 begin
   if v_me is null then raise exception 'not_authenticated' using errcode = '28000'; end if;
+  if public.is_anonymous_user() then raise exception 'account_required' using errcode = '42501'; end if;
   if char_length(v_title) not between 1 and 60 then raise exception 'invalid_title' using errcode = '22023'; end if;
   select coalesce(array_agg(distinct p.id), '{}') into v_members
     from public.profiles p
@@ -807,9 +840,11 @@ end;
 $$;
 
 -- ------------------------------------------------------- secret rooms ---
--- Create (or re-key) the caller's room. A user is in at most one room at a time,
--- so any previous room they own or joined is closed/left first.
-create or replace function public.open_secret_room(p_code text, p_peer_session uuid)
+-- Create a room for the caller. A user can own several rooms (max 20) and stay a
+-- member of rooms they joined. p_replace = the caller's room being re-keyed
+-- ("Change Code"): it is deleted together with its members and messages.
+drop function if exists public.open_secret_room(text, uuid);
+create or replace function public.open_secret_room(p_code text, p_peer_session uuid, p_replace uuid default null)
 returns uuid language plpgsql security definer set search_path = public as $$
 declare v_id uuid;
 begin
@@ -818,8 +853,12 @@ begin
     raise exception 'invalid_code' using errcode = '22023';
   end if;
 
-  delete from public.secret_rooms where owner_id = auth.uid();
-  delete from public.secret_room_participants where user_id = auth.uid();
+  if p_replace is not null then
+    delete from public.secret_rooms where id = p_replace and owner_id = auth.uid();
+  end if;
+  if (select count(*) from public.secret_rooms where owner_id = auth.uid()) >= 20 then
+    raise exception 'too_many_rooms' using errcode = 'P0001';
+  end if;
 
   begin
     insert into public.secret_rooms (code, owner_id, peer_session_id)
@@ -851,9 +890,6 @@ begin
     raise exception 'room_full' using errcode = 'P0001';
   end if;
 
-  delete from public.secret_rooms where owner_id = auth.uid();
-  delete from public.secret_room_participants s where s.user_id = auth.uid() and s.room_id <> r.id;
-
   insert into public.secret_room_participants (room_id, user_id, role, peer_token)
   values (r.id, auth.uid(), 'guest', p_token)
   on conflict on constraint secret_room_participants_pkey do update set peer_token = excluded.peer_token;
@@ -873,7 +909,9 @@ returns void language sql security definer set search_path = public as $$
   delete from public.secret_rooms where id = p_room and owner_id = auth.uid();
 $$;
 
-create or replace function public.get_my_secret_room()
+-- One of my rooms: p_room, or (when null) the one I joined/created most recently.
+drop function if exists public.get_my_secret_room();
+create or replace function public.get_my_secret_room(p_room uuid default null)
 returns table (
   room_id         uuid,
   code            text,
@@ -890,8 +928,36 @@ language sql stable security definer set search_path = public as $$
     join public.secret_rooms r on r.id = me.room_id
     left join public.secret_room_participants g on g.room_id = r.id and g.role = 'guest'
    where me.user_id = auth.uid()
+     and (p_room is null or r.id = p_room)
    order by me.joined_at desc
    limit 1;
+$$;
+
+-- "Recent rooms": every room I created or joined, newest activity first.
+create or replace function public.list_my_secret_rooms()
+returns table (
+  room_id         uuid,
+  code            text,
+  my_role         text,
+  joined_at       timestamptz,
+  partner_id      uuid,
+  partner_name    text,
+  partner_avatar  text,
+  last_message_at timestamptz
+)
+language sql stable security definer set search_path = public as $$
+  select r.id, r.code, me.role, me.joined_at,
+         o.user_id, coalesce(p.display_name, p.username), p.avatar_path,
+         (select max(m.created_at) from public.secret_room_messages m
+           where m.room_id = r.id and m.created_at >= me.joined_at
+             and m.created_at > coalesce(me.cleared_at, '-infinity'::timestamptz))
+    from public.secret_room_participants me
+    join public.secret_rooms r on r.id = me.room_id
+    left join public.secret_room_participants o on o.room_id = r.id and o.user_id <> me.user_id
+    left join public.profiles p on p.id = o.user_id
+   where me.user_id = auth.uid()
+   order by greatest(me.joined_at, coalesce((select max(m.created_at) from public.secret_room_messages m where m.room_id = r.id), me.joined_at)) desc
+   limit 50;
 $$;
 
 create or replace function public.mark_room_messages_delivered(p_ids uuid[])
@@ -938,7 +1004,7 @@ grant insert (id, conversation_id, sender_id, body, reply_to_id,
 grant update (body) on public.messages to authenticated;
 
 grant select on public.secret_room_messages to authenticated;
-grant insert (id, room_id, sender_id, kind, body, mime, reply_to_id) on public.secret_room_messages to authenticated;
+grant insert (id, room_id, sender_id, kind, body, mime, reply_to_id, attachment_path) on public.secret_room_messages to authenticated;
 grant update (body) on public.secret_room_messages to authenticated;
 
 -- Functions: revoke the default PUBLIC execute, then grant only what the app needs.
@@ -951,8 +1017,9 @@ begin
     'public.username_available(text)', 'public.login_email_for_username(text)', 'public.ensure_my_profile()',
     'public.search_users(text)', 'public.touch_presence(boolean)', 'public.get_or_create_direct_conversation(uuid)',
     'public.get_conversations()', 'public.mark_delivered(uuid)', 'public.mark_conversation_read(uuid)',
-    'public.clear_conversation(uuid)', 'public.open_secret_room(text, uuid)', 'public.join_secret_room(text, text)',
-    'public.leave_secret_room(uuid)', 'public.close_secret_room(uuid)', 'public.get_my_secret_room()',
+    'public.clear_conversation(uuid)', 'public.open_secret_room(text, uuid, uuid)', 'public.join_secret_room(text, text)',
+    'public.leave_secret_room(uuid)', 'public.close_secret_room(uuid)', 'public.get_my_secret_room(uuid)',
+    'public.list_my_secret_rooms()', 'public.is_room_owner(uuid)', 'public.is_anonymous_user()',
     'public.mark_room_messages_delivered(uuid[])', 'public.clear_secret_room_history(uuid)',
     'public.handle_new_user()', 'public.handle_user_phone_change()', 'public.messages_after_insert()',
     'public.display_name_of(uuid)', 'public.group_system_message(uuid, text)', 'public.is_group_admin(uuid)',
@@ -967,9 +1034,10 @@ begin
     'public.can_view_profile(uuid)', 'public.can_access_realtime_topic(text)',
     'public.ensure_my_profile()', 'public.search_users(text)', 'public.touch_presence(boolean)',
     'public.get_or_create_direct_conversation(uuid)', 'public.get_conversations()', 'public.mark_delivered(uuid)',
-    'public.mark_conversation_read(uuid)', 'public.clear_conversation(uuid)', 'public.open_secret_room(text, uuid)',
+    'public.mark_conversation_read(uuid)', 'public.clear_conversation(uuid)', 'public.open_secret_room(text, uuid, uuid)',
     'public.join_secret_room(text, text)', 'public.leave_secret_room(uuid)', 'public.close_secret_room(uuid)',
-    'public.get_my_secret_room()', 'public.mark_room_messages_delivered(uuid[])', 'public.clear_secret_room_history(uuid)',
+    'public.get_my_secret_room(uuid)', 'public.list_my_secret_rooms()', 'public.is_room_owner(uuid)', 'public.is_anonymous_user()',
+    'public.mark_room_messages_delivered(uuid[])', 'public.clear_secret_room_history(uuid)',
     'public.username_available(text)', 'public.login_email_for_username(text)',
     'public.create_group(text, uuid[])', 'public.add_group_members(uuid, uuid[])', 'public.remove_group_member(uuid, uuid)',
     'public.set_group_admin(uuid, uuid, boolean)', 'public.leave_group(uuid)', 'public.update_group(uuid, text, text, boolean)'
@@ -1127,6 +1195,34 @@ create policy "chat-media: participants can upload" on storage.objects
 create policy "chat-media: uploader can delete" on storage.objects
   for delete to authenticated
   using (bucket_id = 'chat-media' and (storage.foldername(name))[2] = (select auth.uid())::text);
+
+-- -----------------------------------------------------------------------------
+-- 8c. STORAGE — Secret Room photos/videos (bucket "room-media", PRIVATE)
+--     Path: "<room id>/<uploader user id>/<file>". Room members can read (signed
+--     URLs); you upload only into your own folder; the uploader or the room owner
+--     can delete (the owner's app empties the room folder when the room is deleted).
+-- -----------------------------------------------------------------------------
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('room-media', 'room-media', false, 52428800, null)
+on conflict (id) do update
+  set public = false, file_size_limit = excluded.file_size_limit;
+
+drop policy if exists "room-media: members can read"   on storage.objects;
+drop policy if exists "room-media: members can upload" on storage.objects;
+drop policy if exists "room-media: uploader or owner can delete" on storage.objects;
+create policy "room-media: members can read" on storage.objects
+  for select to authenticated
+  using (bucket_id = 'room-media' and public.is_room_participant(public.chat_object_conversation(name)));
+create policy "room-media: members can upload" on storage.objects
+  for insert to authenticated
+  with check (bucket_id = 'room-media'
+              and public.is_room_participant(public.chat_object_conversation(name))
+              and (storage.foldername(name))[2] = (select auth.uid())::text);
+create policy "room-media: uploader or owner can delete" on storage.objects
+  for delete to authenticated
+  using (bucket_id = 'room-media'
+         and ((storage.foldername(name))[2] = (select auth.uid())::text
+              or public.is_room_owner(public.chat_object_conversation(name))));
 
 -- =============================================================================
 -- 9. REALTIME
