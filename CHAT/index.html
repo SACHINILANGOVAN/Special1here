@@ -131,7 +131,12 @@ html.ios .float-heart svg{filter:none}
 /* iOS: keep the app pinned to the screen and the text at a fixed size */
 html.ios{-webkit-text-size-adjust:100%;text-size-adjust:100%;height:100%;overflow:hidden;overscroll-behavior:none;touch-action:manipulation}
 html.ios body{-webkit-text-size-adjust:100%;text-size-adjust:100%;width:100%;height:100%;-webkit-touch-callout:none}
-html.ios .app{will-change:transform;-webkit-backface-visibility:hidden;backface-visibility:hidden}
+/* iOS Safari skips painting clipped one-line text (names, last messages, "…" labels) inside a screen that is
+   being moved/scaled, until something forces a repaint seconds later. On iOS, screens just fade — no transform. */
+html.ios .screen{transform:none;transition:opacity .3s var(--ease), visibility 0s linear .3s}
+html.ios .screen.active{transform:none;transition-delay:0s}
+html.ios .reveal{animation-name:revealInIos}           /* no blur/transform: same paint bug, and blur is heavy on iPhone */
+@keyframes revealInIos{from{opacity:0}}
 html.ios input:not([type="range"]):not([type="checkbox"]):not([type="radio"]),html.ios textarea,html.ios select{font-size:max(16px,1em)} /* < 16px makes Safari zoom on focus */
 html.ios input,html.ios textarea,html.ios [contenteditable="true"]{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
 html.ios .seg button,html.ios .btn{white-space:nowrap;min-width:0}
@@ -4389,7 +4394,7 @@ select.field option{color:#2c1521;background:#fff}
     const h = vv ? vv.height : window.innerHeight;
     root.style.setProperty('--app-h', Math.round(h) + 'px');
     const top = vv ? Math.max(0, Math.round(vv.offsetTop)) : 0;
-    appEl.style.transform = top > 0 ? (IS_IOS ? 'translate3d(0,' + top + 'px,0)' : 'translateY(' + top + 'px)') : '';
+    appEl.style.transform = top > 0 ? 'translateY(' + top + 'px)' : '';
   }
   let fitRaf = 0;
   function fitViewportSoon() { if (!fitRaf) fitRaf = requestAnimationFrame(() => { fitRaf = 0; fitViewport(); }); }
