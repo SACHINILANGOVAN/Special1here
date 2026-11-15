@@ -26,6 +26,10 @@
     var ua = navigator.userAgent || '';
     if (/iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) {
       document.documentElement.classList.add('ios');
+      // iOS only: stop Safari zooming the app when a field is focused (it ignores this for deliberate pinch on
+      // plain pages, but together with the gesture guard below the app UI stays at 1:1 and fixed).
+      var vp = document.querySelector('meta[name="viewport"]');
+      if (vp && !/maximum-scale/.test(vp.content)) vp.setAttribute('content', vp.content + ', maximum-scale=1');
     }
   })();
 </script>
@@ -124,7 +128,12 @@ html.ios[data-theme="light"]{
 }
 html.ios .blob{filter:blur(48px)}               /* lighter GPU load so Safari keeps drawing the themed background */
 html.ios .float-heart svg{filter:none}
-html.ios body{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+/* iOS: keep the app pinned to the screen and the text at a fixed size */
+html.ios{-webkit-text-size-adjust:100%;text-size-adjust:100%;height:100%;overflow:hidden;overscroll-behavior:none;touch-action:manipulation}
+html.ios body{-webkit-text-size-adjust:100%;text-size-adjust:100%;width:100%;height:100%;-webkit-touch-callout:none}
+html.ios .app{will-change:transform;-webkit-backface-visibility:hidden;backface-visibility:hidden}
+html.ios input:not([type="range"]):not([type="checkbox"]):not([type="radio"]),html.ios textarea,html.ios select{font-size:max(16px,1em)} /* < 16px makes Safari zoom on focus */
+html.ios input,html.ios textarea,html.ios [contenteditable="true"]{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
 html.ios .seg button,html.ios .btn{white-space:nowrap;min-width:0}
 html.ios .seg button{font-size:14px;padding:0 6px}
 
@@ -4375,9 +4384,46 @@ select.field option{color:#2c1521;background:#fff}
   }
   function fitViewport() {
     const vv = window.visualViewport;
+    // iOS sometimes scrolls the page itself when the keyboard opens/closes and leaves it there: put it back.
+    if (IS_IOS && (window.scrollY || window.scrollX)) window.scrollTo(0, 0);
     const h = vv ? vv.height : window.innerHeight;
-    root.style.setProperty('--app-h', h + 'px');
-    appEl.style.transform = vv && vv.offsetTop > 0 ? 'translateY(' + vv.offsetTop + 'px)' : '';
+    root.style.setProperty('--app-h', Math.round(h) + 'px');
+    const top = vv ? Math.max(0, Math.round(vv.offsetTop)) : 0;
+    appEl.style.transform = top > 0 ? (IS_IOS ? 'translate3d(0,' + top + 'px,0)' : 'translateY(' + top + 'px)') : '';
+  }
+  let fitRaf = 0;
+  function fitViewportSoon() { if (!fitRaf) fitRaf = requestAnimationFrame(() => { fitRaf = 0; fitViewport(); }); }
+
+  /* iOS only: Safari lets the whole app be dragged / rubber-banded (most of all while the keyboard is
+     open) and pinch- or double-tap-zoomed. Allow touch scrolling only inside real scroll areas and
+     text fields, never of the page itself, and block page zoom gestures. */
+  function bindIosGuards() {
+    if (!IS_IOS) return;
+    let sx = 0, sy = 0;
+    const scrollable = (n, ax) => {
+      const cs = getComputedStyle(n), ov = ax === 'y' ? cs.overflowY : cs.overflowX;
+      return (ov === 'auto' || ov === 'scroll') && (ax === 'y' ? n.scrollHeight > n.clientHeight + 1 : n.scrollWidth > n.clientWidth + 1);
+    };
+    document.addEventListener('touchstart', (e) => { if (e.touches.length === 1) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; } }, { passive: true });
+    document.addEventListener('touchmove', (e) => {
+      if (e.touches.length > 1) { e.preventDefault(); return; } // pinch: no page zoom
+      const t = e.touches[0], dx = t.clientX - sx, dy = t.clientY - sy, ax = Math.abs(dy) >= Math.abs(dx) ? 'y' : 'x';
+      for (let n = e.target; n && n.nodeType === 1 && n !== document.body; n = n.parentNode) {
+        if (n.tagName === 'INPUT' || n.tagName === 'TEXTAREA' || n.isContentEditable) return; // caret / selection drags
+        if (!scrollable(n, ax)) continue;
+        if (ax === 'y') { // at the very top/bottom, don't let the drag pass through to the page
+          const atTop = n.scrollTop <= 0, atEnd = n.scrollTop + n.clientHeight >= n.scrollHeight - 1;
+          if ((dy > 0 && atTop) || (dy < 0 && atEnd)) e.preventDefault();
+        }
+        return;
+      }
+      e.preventDefault();
+    }, { passive: false });
+    ['gesturestart', 'gesturechange'].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
+    // Keyboard closed / field changed: settle the layout once Safari has finished animating.
+    document.addEventListener('focusout', () => { setTimeout(fitViewport, 60); setTimeout(fitViewport, 350); });
+    document.addEventListener('focusin', () => { setTimeout(fitViewport, 300); });
+    window.addEventListener('scroll', () => { if (window.scrollY || window.scrollX) fitViewportSoon(); }, { passive: true });
   }
 
   /* =========================================================
@@ -4556,8 +4602,9 @@ select.field option{color:#2c1521;background:#fff}
     // Viewport / keyboard
     if (window.visualViewport) {
       visualViewport.addEventListener('resize', () => { const near = nearBottom(), dmNear = DM.nearBottom(); fitViewport(); if (S.screen === 'chat' && near) scrollToBottom(true); if (S.screen === 'dm' && dmNear) DM.scrollBottom(true); });
-      visualViewport.addEventListener('scroll', fitViewport);
+      visualViewport.addEventListener('scroll', IS_IOS ? fitViewportSoon : fitViewport);
     }
+    bindIosGuards();
     window.addEventListener('resize', fitViewport);
     window.addEventListener('orientationchange', () => setTimeout(fitViewport, 250));
   }
